@@ -1,0 +1,25 @@
+.DS_Store
+
+# Phase 0 Python (평가 전용, 배포 산출물 아님)
+.venv/
+__pycache__/
+*.pyc
+uv.lock
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# 서명 및 배포 비밀
+*.p12
+*.cer
+*.provisionprofile
+notarization-*.json
+
+# 모델 가중치는 저장소에 넣지 않는다 (PRD §19)
+*.safetensors
+*.gguf
+*.mlmodelc/
+*.mlpackage/

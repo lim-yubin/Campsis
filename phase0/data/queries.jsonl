@@ -1,0 +1,18 @@
+// Phase 0 평가셋 --- 질문과 정답 라벨
+// 핵심 원칙: 질문에는 문서와 겹치는 단어를 되도록 넣지 않는다.
+// 단어가 겹치면 BM25로도 찾히므로 임베딩 성능을 구분하지 못한다.
+// "며칠 뒤 내가 이렇게 물어볼 것 같다"는 실제 말투로 쓸 것.
+// 필드: id, query, relevant[], note
+{"id": "q-001", "query": "스토어에 못 올리기로 한 까닭이 뭐였지", "relevant": ["doc-001", "doc-003"], "note": "정답 2개. 문서에는 App Store로 적혀 있고 질문은 스토어 - 표기 불일치 테스트"}
+{"id": "q-002", "query": "한글 자료 찾는 데 성적 좋았던 모델이 뭐였나", "relevant": ["doc-002"], "note": "문서는 Korean/영어 모델명뿐. 우리말/한글 대응 여부 테스트"}
+{"id": "q-003", "query": "빌드에 서명 붙이고 나서 첫 실행에 뻗을 때 확인할 것", "relevant": ["doc-003"], "note": "hardened runtime, JIT 같은 용어를 질문에 넣지 않음"}
+{"id": "q-004", "query": "확인 절차 건너뛰면 사용자가 프로그램 열 때 뭘 겪게 되나", "relevant": ["doc-004"], "note": "notarization/공증 단어를 피함"}
+{"id": "q-005", "query": "말소리 글자로 옮기는 건 어느 걸 쓰기로 했더라", "relevant": ["doc-005"], "note": "STT/Whisper 단어 없음"}
+{"id": "q-006", "query": "스위프트 프로젝트에 모델 돌리는 꾸러미 붙이는 방법", "relevant": ["doc-006"], "note": "package/dependency 단어를 우리말로 우회"}
+{"id": "q-007", "query": "학습된 파일을 설치 뒤에 받아와도 심사에 문제 없나", "relevant": ["doc-007"], "note": "weights/model 단어를 피함"}
+{"id": "q-008", "query": "이번 주에 넘겨주기로 약속한 게 있었나", "relevant": ["doc-008"], "note": "목요일/API 명세 단어 없이 찾아야 함"}
+{"id": "q-009", "query": "찾아주는 정확도 올리는 가장 손쉬운 방법", "relevant": ["doc-009"], "note": "OCR 노이즈 문서. reranker 단어 없음"}
+{"id": "q-010", "query": "병원 언제 가기로 했지", "relevant": ["doc-010"], "note": "치과 - 병원 상위어 매칭"}
+{"id": "q-011", "query": "토큰 다시 발급하는 걸 어떻게 처리하라고 했었지", "relevant": ["doc-011"], "note": "rotation - 다시 발급 의미 매칭"}
+{"id": "q-012", "query": "모델 정하는 순서 어떻게 가기로 했었나", "relevant": ["doc-012"], "note": "음성 전사문. 구어체 대상 검색"}
+{"id": "q-013", "query": "직접 배포하기로 한 이유들", "relevant": ["doc-001", "doc-003", "doc-004"], "note": "정답 3개. 여러 근거를 모아오는지 테스트"}

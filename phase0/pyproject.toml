@@ -1,0 +1,24 @@
+[project]
+name = "phase0-retrieval-eval"
+version = "0.1.0"
+description = "Phase 0 retrieval evaluation harness for Personal Memory Mac MVP"
+# Python은 공식 LTS가 없다(각 마이너 버전 5년 지원).
+# 3.14.7이 최신 안정 버전이지만 sentence-transformers가 3.14 지원을 아직
+# 명시하지 않았으므로, 스택 전체가 지원을 선언한 3.13을 사용한다.
+# 3.14로 올리려면 이 줄과 .python-version만 바꾸면 된다.
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "sentence-transformers>=3.3.0",
+    "torch>=2.4.0",
+    "numpy>=1.26",
+    "transformers>=4.51.0",
+]
+
+[project.optional-dependencies]
+# Reranker 단계에만 필요. 기본 임베딩 비교에는 불필요하다.
+rerank = [
+    "accelerate>=1.0.0",
+]
+
+[tool.uv]
+package = false

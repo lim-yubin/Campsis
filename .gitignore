@@ -1,10 +1,11 @@
 .DS_Store
 
 # Phase 0 Python (평가 전용, 배포 산출물 아님)
+# uv.lock은 추적한다. 임베딩 모델 선정 결과가 라이브러리 버전에 좌우되므로
+# 다른 기기에서 같은 수치가 나와야 한다.
 .venv/
 __pycache__/
 *.pyc
-uv.lock
 
 # Xcode
 build/

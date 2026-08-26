@@ -20,10 +20,16 @@ case "${1:-run}" in
       SYMROOT="$BUILD_DIR" -skipPackagePluginValidation -skipMacroValidation -quiet
     echo "✓ Build succeeded"
 
-    pkill -x Campsis 2>/dev/null && sleep 0.5 || true
+    if pkill -x Campsis 2>/dev/null; then
+      sleep 1
+      while pgrep -x Campsis >/dev/null 2>&1; do sleep 0.3; done
+    fi
 
     echo "▶ Launching Campsis..."
-    open "$BUILD_DIR/Debug/Campsis.app"
+    if ! open "$BUILD_DIR/Debug/Campsis.app" 2>/dev/null; then
+      "$BUILD_DIR/Debug/Campsis.app/Contents/MacOS/Campsis" &
+      disown
+    fi
     echo "✓ Running (menu bar icon should appear)"
     ;;
 

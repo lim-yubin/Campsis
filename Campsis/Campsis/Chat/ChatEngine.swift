@@ -30,6 +30,12 @@ actor MLXChatEngine: ChatEngineProtocol {
         You are a personal memory assistant. The user saved text clips, screenshots, notes, and files. \
         They are now chatting with you to recall their saved memories.
 
+        IMPORTANT - Output format:
+        - You MUST answer in natural language prose with markdown formatting (headings, bullets, bold).
+        - DO NOT output JSON objects or arrays.
+        - DO NOT wrap your entire answer in code blocks.
+        - Only use code blocks when the user explicitly asks for code snippets or data formats.
+
         Rules:
         1. Base your answer ONLY on the provided sources (context).
         2. If ANY source contains even partially relevant information, use it to form an answer. \
@@ -62,16 +68,17 @@ actor MLXChatEngine: ChatEngineProtocol {
         let results = try await searchEngine.search(query: query, topN: 5)
 
         let contextBlock = buildContext(from: results)
+        let formatReminder = "\n\nRemember: Answer in natural language with markdown. Do NOT output JSON."
         let prompt: String
         if results.isEmpty {
-            prompt = "Question: \(query)\n\n(No relevant sources found in memory.)"
+            prompt = "Question: \(query)\n\n(No relevant sources found in memory.)" + formatReminder
         } else {
             prompt = """
                 Question: \(query)
 
                 Sources:
                 \(contextBlock)
-                """
+                """ + formatReminder
         }
 
         if chatSession == nil {

@@ -4,6 +4,7 @@ struct MessageBubbleView: View {
     let message: Message
     let sources: [Source]
     @State private var showSources = false
+    @State private var copied = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -14,8 +15,14 @@ struct MessageBubbleView: View {
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
                 bubble
 
-                if message.role == .assistant && !sources.isEmpty {
-                    sourcesToggle
+                if message.role == .assistant {
+                    HStack(spacing: 12) {
+                        copyButton
+
+                        if !sources.isEmpty {
+                            sourcesToggle
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
@@ -52,6 +59,23 @@ struct MessageBubbleView: View {
             in: RoundedRectangle(cornerRadius: 12)
         )
         .frame(maxWidth: 600, alignment: message.role == .user ? .trailing : .leading)
+    }
+
+    private var copyButton: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(message.content, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                Text(copied ? "복사됨" : "복사")
+            }
+            .font(.subheadline)
+            .foregroundStyle(copied ? .green : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder

@@ -24,3 +24,6 @@ notarization-*.json
 *.gguf
 *.mlmodelc/
 *.mlpackage/
+
+.env
+default.profraw

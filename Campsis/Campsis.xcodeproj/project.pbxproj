@@ -112,6 +112,8 @@
 			);
 			name = Campsis;
 			packageProductDependencies = (
+				AA000003303E00000063E808 /* GRDB */,
+				AA000004303E00000063E808 /* KeyboardShortcuts */,
 			);
 			productName = Campsis;
 			productReference = FA557E54303DACD10063E808 /* Campsis.app */;
@@ -135,6 +137,7 @@
 			);
 			name = CampsisTests;
 			packageProductDependencies = (
+				AA000005303E00000063E808 /* GRDB */,
 			);
 			productName = CampsisTests;
 			productReference = FA557E61303DACD20063E808 /* CampsisTests.xctest */;
@@ -195,6 +198,10 @@
 			);
 			mainGroup = FA557E4B303DACD10063E808;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA000001303E00000063E808 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				AA000002303E00000063E808 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FA557E55303DACD10063E808 /* Products */;
 			projectDirPath = "";
@@ -403,6 +410,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Campsis;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -436,6 +444,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Campsis;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -577,6 +586,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000001303E00000063E808 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+		AA000002303E00000063E808 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000003303E00000063E808 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001303E00000063E808 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		AA000004303E00000063E808 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000002303E00000063E808 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		AA000005303E00000063E808 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001303E00000063E808 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FA557E4C303DACD10063E808 /* Project object */;
 }

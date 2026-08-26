@@ -1984,6 +1984,31 @@ O13을 추가한다. Searchable Text 조합 규칙도 `embedding_version`에 묶
 |---|---|---|---|
 | O13 | Searchable Text 필드 조합 확정 | Phase 0 | O1과 동시 결정 (재색인 유발) |
 
+### 28.2.1 Phase 1 Selected Text 감지 구현 현황
+
+Phase 1에서 구현한 Selected Text 감지 접근 방식과 실측 대기 상태를 기록한다.
+
+**구현 접근:**
+
+1.  **AX API 1차** --- `kAXFocusedUIElementAttribute` →
+    `kAXSelectedTextAttribute`
+2.  **클립보드 폴백 2차** --- Cmd+C 시뮬레이션 후 `NSPasteboard` 읽기,
+    원본 클립보드 복원
+3.  **Window Title** --- AX API `kAXFocusedWindowAttribute` → `kAXTitleAttribute`
+4.  **URL 수집** --- Chrome/Safari/Arc/Brave AppleScript
+
+| 앱 | AX API | 클립보드 폴백 | Window Title | URL | 비고 |
+|---|---|---|---|---|---|
+| Chrome | 실측 대기 | 실측 대기 | 실측 대기 | AppleScript | |
+| Slack | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
+| Cursor | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
+| Terminal | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
+| Preview (PDF) | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
+
+**실측 절차:** 앱을 빌드 후 실행하고, 시스템 설정에서 Accessibility 권한을
+부여한 뒤 각 앱에서 텍스트를 선택하고 `⌥Space`를 누른다. Capture Popup에
+선택한 텍스트가 뜨면 성공이다.
+
 ### 28.3.1 Phase 0 진행 현황
 
 측정 도구는 `phase0/`에 구축 완료(Python 3.13, uv). 실행 방법은

@@ -52,5 +52,29 @@ nonisolated enum AppMigrations {
                 columns: ["embedding_model", "embedding_version"]
             )
         }
+
+        migrator.registerMigration("v4-chat") { db in
+            try db.create(table: "conversation") { t in
+                t.primaryKey("id", .text)
+                t.column("title", .text).notNull()
+                t.column("created_at", .datetime).notNull()
+                t.column("updated_at", .datetime).notNull()
+            }
+
+            try db.create(table: "message") { t in
+                t.primaryKey("id", .text)
+                t.column("conversation_id", .text).notNull()
+                    .references("conversation", onDelete: .cascade)
+                t.column("role", .text).notNull()
+                t.column("content", .text).notNull()
+                t.column("source_ids", .text)
+                t.column("created_at", .datetime).notNull()
+            }
+            try db.create(
+                index: "idx_message_conversation",
+                on: "message",
+                columns: ["conversation_id"]
+            )
+        }
     }
 }

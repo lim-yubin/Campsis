@@ -16,10 +16,11 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 | **3. 검색**        | "그거 뭐였지?" 하면 찾아주기        | 개인 비서에게 물어보기        |
 | **3.5. 고급 AI**   | 답변 품질이 부족할 때 더 큰 AI 투입 | 비서를 전문가로 교체          |
 | **4. 추가 입력**   | 메모, 음성, 파일도 기억             | 메모장 + 녹음기 + 파일함 추가 |
+| **4.5. 대화형 UI** | ChatGPT 스타일로 기억과 대화        | 비서와 채팅하기               |
 | **5. 실사용 검증** | 직접 써보면서 다듬기                | 시범 운영                     |
 | **6. 배포**        | 다른 사람도 쓸 수 있게 출시         | 앱스토어 오픈                 |
 
-**현재 위치:** Phase 4 진행중 — Quick Note + File Upload 완료, Voice Memo 보류
+**현재 위치:** Phase 4.5 완료 — 대화형 Chat UI 구현 완료
 
 ---
 
@@ -116,6 +117,19 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행.
 
 ---
 
+## Phase 4.5 — Chat UI `완료`
+
+| #     | 작업                                     | 상태 | 비고                                   |
+| ----- | ---------------------------------------- | ---- | -------------------------------------- |
+| 4.5.1 | Conversation + Message 데이터 모델 + 마이그레이션 | 완료 | v4-chat 마이그레이션                    |
+| 4.5.2 | ConversationRepository + MessageRepository | 완료 | GRDB CRUD                              |
+| 4.5.3 | ChatEngine (multi-turn + 벡터 검색)      | 완료 | Apple FM LanguageModelSession          |
+| 4.5.4 | ChatView 대화형 UI                       | 완료 | 메시지 버블 + 입력창 + 스크롤          |
+| 4.5.5 | Conversation 사이드바 목록               | 완료 | New Chat, 삭제, 시간순 정렬            |
+| 4.5.6 | 기존 SearchView 제거 + 네비게이션 재구성 | 완료 | Search 탭 → Chat 기반으로 교체         |
+
+---
+
 ## Phase 5 — Dogfooding / Optimization `대기`
 
 | #   | 작업                                       | 상태 | 비고              |
@@ -147,6 +161,7 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행.
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-26 | Phase 4.5 (Chat UI) 완료. SearchView → ChatView 대화형 UI로 전환, 대화 이력 DB 저장 |
 | 2026-08-26 | Phase 4 (Quick Note + File Upload) 완료. Voice Memo는 O5 미결정으로 보류. PDF Chunking은 Phase 5로 이동 |
 | 2026-08-26 | Phase 3 완료: Core ML Embedding, Vector Search, Search UI, RAG Answer, Citation, Memories View 구현. Reranker는 품질 실측 후 추가 예정 |
 | 2026-08-26 | O1 해소: BAAI/bge-m3 확정 (MIT, fp16, 1081MB). O13 해소: Searchable Text 조합 확정. Phase 3에 3.0(Local Embedding) 추가                |

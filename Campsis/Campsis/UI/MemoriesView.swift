@@ -8,6 +8,44 @@ struct MemoriesView: View {
     @State private var selectedSource: Source?
     @State private var showFileImporter = false
     @State private var importStatus: String?
+    @State private var collapsedDates: Set<String> = []
+    @State private var selectedDate: Date? = nil
+    @State private var showCalendar = false
+    @State private var calendarDate: Date = Date()
+
+    private var filteredCount: Int {
+        groupedSources.reduce(0) { $0 + $1.sources.count }
+    }
+
+    private var groupedSources: [(key: String, label: String, sources: [Source])] {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        let labelFormatter = DateFormatter()
+        labelFormatter.locale = Locale(identifier: "ko_KR")
+        labelFormatter.dateFormat = "yyyy년 M월 d일"
+
+        let filtered: [Source]
+        if let date = selectedDate {
+            let dayStart = calendar.startOfDay(for: date)
+            let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
+            filtered = sources.filter { $0.capturedAt >= dayStart && $0.capturedAt < dayEnd }
+        } else {
+            filtered = sources
+        }
+
+        let grouped = Dictionary(grouping: filtered) { source in
+            formatter.string(from: source.capturedAt)
+        }
+
+        return grouped.keys.sorted(by: >).map { key in
+            let date = formatter.date(from: key) ?? Date()
+            let label = labelFormatter.string(from: date)
+            let items = grouped[key]!.sorted { $0.capturedAt > $1.capturedAt }
+            return (key: key, label: label, sources: items)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +68,7 @@ struct MemoriesView: View {
     }
 
     private var filterBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             Picker("Filter", selection: $selectedFilter) {
                 ForEach(SourceFilter.allCases) { filter in
                     Text(filter.label).tag(filter)
@@ -43,24 +81,72 @@ struct MemoriesView: View {
 
             if let status = importStatus {
                 Text(status)
-                    .font(.caption)
+                    .font(.body)
                     .foregroundStyle(.secondary)
             }
 
-            Text("\(sources.count) items")
-                .font(.caption)
+            Text("\(filteredCount) items")
+                .font(.body)
                 .foregroundStyle(.secondary)
+
+            Button {
+                showCalendar.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                        .font(.body)
+                    if let date = selectedDate {
+                        Text(date.formatted(.dateTime.month().day()))
+                            .font(.body)
+                    }
+                }
+                .foregroundStyle(selectedDate != nil ? .blue : .secondary)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showCalendar, arrowEdge: .bottom) {
+                calendarPopover
+            }
 
             Button {
                 showFileImporter = true
             } label: {
                 Image(systemName: "plus.circle")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderless)
-            .help("Import File")
+            .buttonStyle(.plain)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    private var calendarPopover: some View {
+        VStack(spacing: 12) {
+            DatePicker(
+                "Select Date",
+                selection: $calendarDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .focusable(false)
+            .scaleEffect(1.4)
+            .frame(width: 280, height: 260)
+            .onChange(of: calendarDate) { _, newDate in
+                selectedDate = newDate
+            }
+
+            if selectedDate != nil {
+                Button("Reset") {
+                    selectedDate = nil
+                    showCalendar = false
+                }
+                .font(.body)
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(8)
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
@@ -95,44 +181,74 @@ struct MemoriesView: View {
 
     @State private var sourceToDelete: Source?
 
+    @ViewBuilder
     private var sourceList: some View {
-        List {
-            ForEach(sources) { source in
-                MemoryRowView(source: source)
-                    .onTapGesture { selectedSource = source }
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            sourceToDelete = source
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+        let groups = groupedSources
+
+        if groups.isEmpty && selectedDate != nil {
+            ContentUnavailableView(
+                "No memories",
+                systemImage: "calendar.badge.exclamationmark",
+                description: Text("선택한 날짜에 저장된 기억이 없습니다.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                ForEach(groups, id: \.key) { group in
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { !collapsedDates.contains(group.key) },
+                            set: { expanded in
+                                if expanded {
+                                    collapsedDates.remove(group.key)
+                                } else {
+                                    collapsedDates.insert(group.key)
+                                }
+                            }
+                        )
+                    ) {
+                        ForEach(group.sources) { source in
+                            MemoryRowView(source: source)
+                                .onTapGesture { selectedSource = source }
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        sourceToDelete = source
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
+                    } label: {
+                        HStack {
+                            Text(group.label)
+                                .font(.body.weight(.medium))
+                            Text("(\(group.sources.count))")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
                     }
-            }
-            .onDelete { offsets in
-                if let index = offsets.first {
-                    sourceToDelete = sources[index]
                 }
             }
-        }
-        .listStyle(.plain)
-        .confirmationDialog(
-            "이 기억을 삭제하시겠습니까?",
-            isPresented: Binding(
-                get: { sourceToDelete != nil },
-                set: { if !$0 { sourceToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("삭제", role: .destructive) {
-                if let source = sourceToDelete {
-                    deleteSource(source)
+            .listStyle(.sidebar)
+            .confirmationDialog(
+                "이 기억을 삭제하시겠습니까?",
+                isPresented: Binding(
+                    get: { sourceToDelete != nil },
+                    set: { if !$0 { sourceToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("삭제", role: .destructive) {
+                    if let source = sourceToDelete {
+                        deleteSource(source)
+                    }
                 }
+                Button("취소", role: .cancel) {
+                    sourceToDelete = nil
+                }
+            } message: {
+                Text("삭제된 기억은 복구할 수 없습니다.")
             }
-            Button("취소", role: .cancel) {
-                sourceToDelete = nil
-            }
-        } message: {
-            Text("삭제된 기억은 복구할 수 없습니다.")
         }
     }
 
@@ -190,22 +306,23 @@ struct MemoryRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: iconName)
+                .font(.title3)
                 .foregroundStyle(iconColor)
-                .frame(width: 24)
+                .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(titleText)
-                    .font(.body)
+                    .font(.title3)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
                     if let app = source.application {
                         Text(app)
-                            .font(.caption)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    Text(source.capturedAt, style: .relative)
-                        .font(.caption)
+                    Text(source.capturedAt.formatted(.dateTime.month().day().hour().minute()))
+                        .font(.subheadline)
                         .foregroundStyle(.tertiary)
                 }
             }

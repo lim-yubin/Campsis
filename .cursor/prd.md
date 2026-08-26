@@ -2016,8 +2016,9 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D23  | Capture Popup은 마우스가 있는 모니터에 표시           | 캡처한 화면과 같은 모니터에 결과를 보여줌                                                                                                  |
 | D24  | AppDelegate 패턴으로 CaptureCoordinator 유지          | SwiftUI App struct의 `@State`는 body에서 미참조 시 생명주기 불안정. `NSApplicationDelegateAdaptor`가 확실함                                |
 | D27  | Reranker(Phase 3.2) 미적용, brute-force vector search | MVP 규모(수천 벡터)에서 <50ms. 품질 실측 후 조건부 추가                                                                                    |
-| D28  | RAG Answer에 Apple FM 사용 (Phase 3.4)                | Context 8192 토큰 내에서 충분. MLX fallback은 Phase 3.5에서 조건부                                                                         |
+| D28  | ~~RAG Answer에 Apple FM 사용 (Phase 3.4)~~ → D30으로 교체 | ~~Context 8192 토큰 내에서 충분~~. Apple FM의 작은 컨텍스트 + 보수적 가드레일 문제로 MLX 교체 결정                                          |
 | D29  | 메인 창 SwiftUI Window scene + @Observable AppState   | ObservableObject의 `@available` 프로퍼티 제약으로 @Observable 채택                                                                         |
+| D30  | LLM을 Qwen3-4B-4bit (MLX) 기반으로 교체              | mlx-swift-lm 3.31.4, ChatSession API. 128K 컨텍스트. Apple FM 폴백 유지. TextGenerator 프로토콜 + ChatEngineProtocol로 추상화               |
 
 ### 28.3.1 Phase 0 진행 현황
 

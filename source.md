@@ -107,7 +107,7 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 - AI 답변 + 근거 소스 표시 — 답변에 사용된 기억을 펼쳐서 확인
 - 여러 대화 관리 — 주제별로 새 채팅 시작 가능
 
-**기술:** Apple Foundation Models (multi-turn session), VectorSearch, SQLite 대화 저장
+**기술:** Qwen3-4B (MLX, 온디바이스 128K 컨텍스트), VectorSearch, SQLite 대화 저장
 
 ### 소스 상세 보기
 
@@ -147,7 +147,7 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 | 스크린 캡처 | ScreenCaptureKit |
 | 텍스트 감지 | Accessibility API (AX) |
 | OCR | Apple Vision Framework |
-| AI 분석 | Apple Foundation Models (@Generable) |
+| AI 분석 | Qwen3-4B-4bit via MLX (Apple FM 폴백) |
 | 임베딩 | Core ML (bge-m3 fp16, 1024-dim) |
 | 토크나이저 | swift-transformers (XLM-RoBERTa) |
 | 벡터 검색 | Accelerate framework (vDSP) |
@@ -164,7 +164,7 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 | Phase 1 | 캡처 기반 구축 | 완료 |
 | Phase 2 | AI 자동 처리 (OCR, 요약, 태깅, 임베딩) | 완료 |
 | Phase 3 | 검색 + Recall + 기억 관리 | 완료 |
-| Phase 3.5 | 고급 AI (Reranker, 조건부) | 대기 |
+| Phase 3.5 | MLX LLM 통합 (Qwen3-4B) | 완료 |
 | Phase 4 | Quick Note + 파일 가져오기 | 완료 |
 | Phase 4.5 | 대화형 UI (Chat) | 완료 |
 | Phase 5 | 실사용 검증 + 최적화 | 예정 |

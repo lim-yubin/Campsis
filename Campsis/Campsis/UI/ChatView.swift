@@ -107,7 +107,7 @@ struct ChatView: View {
     private func generateResponse(for query: String, userMessageId: String) async {
         guard let chatEngine = appState.chatEngine else {
             await MainActor.run {
-                appendAssistantMessage("Apple Intelligence (macOS 26+)가 필요합니다.", sourceIds: [])
+                appendAssistantMessage("AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요.", sourceIds: [])
                 isLoading = false
             }
             return

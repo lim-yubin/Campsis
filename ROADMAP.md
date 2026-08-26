@@ -14,13 +14,13 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 | **1. 캡처**        | 사용자가 보고 있는 것을 가져오기    | 카메라 + 메모장 설치          |
 | **2. 처리**        | 가져온 것을 AI가 이해하기           | 사진 속 글자 읽기, 요약, 분류 |
 | **3. 검색**        | "그거 뭐였지?" 하면 찾아주기        | 개인 비서에게 물어보기        |
-| **3.5. 고급 AI**   | 답변 품질이 부족할 때 더 큰 AI 투입 | 비서를 전문가로 교체          |
+| **3.5. MLX LLM**   | 로컬 AI를 Qwen3-4B로 업그레이드     | 비서 두뇌를 교체              |
 | **4. 추가 입력**   | 메모, 음성, 파일도 기억             | 메모장 + 녹음기 + 파일함 추가 |
 | **4.5. 대화형 UI** | ChatGPT 스타일로 기억과 대화        | 비서와 채팅하기               |
 | **5. 실사용 검증** | 직접 써보면서 다듬기                | 시범 운영                     |
 | **6. 배포**        | 다른 사람도 쓸 수 있게 출시         | 앱스토어 오픈                 |
 
-**현재 위치:** Phase 4.5 완료 — 대화형 Chat UI 구현 완료
+**현재 위치:** Phase 5 진입 준비 — MLX LLM (Qwen3-4B) 통합 완료, Apple FM 폴백 유지
 
 ---
 
@@ -91,18 +91,19 @@ Apple Foundation Models만으로 파이프라인을 완성한다. MLX는 도입�
 
 ---
 
-## Phase 3.5 — MLX 도입 (조건부) `대기`
+## Phase 3.5 — MLX LLM 통합 `완료`
 
-Phase 3의 Answer 품질이 불충분할 경우에만 수행.
+Apple FM의 제한된 컨텍스트/품질 문제로 Qwen3-4B-4bit (MLX) 직접 통합 결정.
 
-| #     | 작업                                      | 상태 | 비고   |
-| ----- | ----------------------------------------- | ---- | ------ |
-| 3.5.1 | MLXGenerator 구현                         | 대기 | §11.3  |
-| 3.5.2 | Hardware Tier 감지 + 모델 선택            | 대기 | §11.9  |
-| 3.5.3 | 모델 다운로드 + 진행률 UI                 | 대기 |        |
-| 3.5.4 | Model Residency 정책 (온디맨드 로드/해제) | 대기 | §11.10 |
-| 3.5.5 | Hardened Runtime entitlements 검증        | 대기 | §19.3  |
-| 3.5.6 | Apple FM ↔ MLX 품질 비교                  | 대기 |        |
+| #     | 작업                                         | 상태 | 비고                                                  |
+| ----- | -------------------------------------------- | ---- | ----------------------------------------------------- |
+| 3.5.1 | MLXGenerator 구현 (요약/태깅용)              | 완료 | MLXLLM ChatSession, JSON 파싱                         |
+| 3.5.2 | MLXChatEngine 구현 (대화형 검색)             | 완료 | ChatSession, 128K 컨텍스트, thinking 토큰 strip       |
+| 3.5.3 | HuggingFace 모델 자동 다운로드               | 완료 | swift-huggingface HubClient, 캐시 관리                |
+| 3.5.4 | Apple FM 폴백                                | 완료 | MLX 로드 실패 시 AppleFMGenerator + AppleFMChatEngine |
+| 3.5.5 | ChatEngineProtocol 추상화                    | 완료 | MLX/AppleFM 교체 투명                                 |
+| 3.5.6 | Hardware Tier 감지 + Model Residency         | 대기 | Phase 5 dogfooding 후 결정                            |
+| 3.5.7 | Hardened Runtime entitlements 검증            | 대기 | §19.3                                                 |
 
 ---
 
@@ -110,23 +111,23 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행.
 
 | #   | 작업             | 상태     | 비고                                       |
 | --- | ---------------- | -------- | ------------------------------------------ |
-| 4.1 | Quick Note       | 완료     | ⌥⇧Space → QuickNotePopup → Source(note)   |
+| 4.1 | Quick Note       | 완료     | ⌥⇧Space → QuickNotePopup → Source(note)    |
 | 4.2 | Voice Memo (STT) | **대기** | Phase 4.5로 보류 (O5 미결정)               |
 | 4.3 | File Upload      | 완료     | Drag&Drop + File Picker, PDF/TXT/MD/이미지 |
-| 4.4 | PDF Chunking     | **대기** | 현재 단일 Source, Phase 5에서 페이지 분할   |
+| 4.4 | PDF Chunking     | **대기** | 현재 단일 Source, Phase 5에서 페이지 분할  |
 
 ---
 
 ## Phase 4.5 — Chat UI `완료`
 
-| #     | 작업                                     | 상태 | 비고                                   |
-| ----- | ---------------------------------------- | ---- | -------------------------------------- |
-| 4.5.1 | Conversation + Message 데이터 모델 + 마이그레이션 | 완료 | v4-chat 마이그레이션                    |
-| 4.5.2 | ConversationRepository + MessageRepository | 완료 | GRDB CRUD                              |
-| 4.5.3 | ChatEngine (multi-turn + 벡터 검색)      | 완료 | Apple FM LanguageModelSession          |
-| 4.5.4 | ChatView 대화형 UI                       | 완료 | 메시지 버블 + 입력창 + 스크롤          |
-| 4.5.5 | Conversation 사이드바 목록               | 완료 | New Chat, 삭제, 시간순 정렬            |
-| 4.5.6 | 기존 SearchView 제거 + 네비게이션 재구성 | 완료 | Search 탭 → Chat 기반으로 교체         |
+| #     | 작업                                              | 상태 | 비고                           |
+| ----- | ------------------------------------------------- | ---- | ------------------------------ |
+| 4.5.1 | Conversation + Message 데이터 모델 + 마이그레이션 | 완료 | v4-chat 마이그레이션           |
+| 4.5.2 | ConversationRepository + MessageRepository        | 완료 | GRDB CRUD                      |
+| 4.5.3 | ChatEngine (multi-turn + 벡터 검색)               | 완료 | MLX ChatSession (AppleFM 폴백) |
+| 4.5.4 | ChatView 대화형 UI                                | 완료 | 메시지 버블 + 입력창 + 스크롤  |
+| 4.5.5 | Conversation 사이드바 목록                        | 완료 | New Chat, 삭제, 시간순 정렬    |
+| 4.5.6 | 기존 SearchView 제거 + 네비게이션 재구성          | 완료 | Search 탭 → Chat 기반으로 교체 |
 
 ---
 
@@ -161,8 +162,9 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행.
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-26 | Phase 4.5 (Chat UI) 완료. SearchView → ChatView 대화형 UI로 전환, 대화 이력 DB 저장 |
-| 2026-08-26 | Phase 4 (Quick Note + File Upload) 완료. Voice Memo는 O5 미결정으로 보류. PDF Chunking은 Phase 5로 이동 |
+| 2026-08-26 | Phase 3.5 (MLX 통합) 완료. Qwen3-4B-4bit via MLXLLM ChatSession. Apple FM 폴백 유지. 컨텍스트 8K→128K 확장                              |
+| 2026-08-26 | Phase 4.5 (Chat UI) 완료. SearchView → ChatView 대화형 UI로 전환, 대화 이력 DB 저장                                                    |
+| 2026-08-26 | Phase 4 (Quick Note + File Upload) 완료. Voice Memo는 O5 미결정으로 보류. PDF Chunking은 Phase 5로 이동                                |
 | 2026-08-26 | Phase 3 완료: Core ML Embedding, Vector Search, Search UI, RAG Answer, Citation, Memories View 구현. Reranker는 품질 실측 후 추가 예정 |
 | 2026-08-26 | O1 해소: BAAI/bge-m3 확정 (MIT, fp16, 1081MB). O13 해소: Searchable Text 조합 확정. Phase 3에 3.0(Local Embedding) 추가                |
 | 2026-08-26 | Phase 2 완료 (2.6 Embedding 스킵 — O1 미확정). OCR, Summary, Topics, Pipeline, Retry 구현                                              |

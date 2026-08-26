@@ -1,5 +1,6 @@
 import SwiftUI
 import KeyboardShortcuts
+import MLXLMCommon
 
 @main
 struct CampsisApp: App {
@@ -33,8 +34,7 @@ final class AppState {
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
 
-    @available(macOS 26.0, *)
-    var chatEngine: ChatEngine? { chatEngineRef as? ChatEngine }
+    var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
 
     init(sourceRepository: SourceRepository, embeddingRepository: EmbeddingRepository,
          embeddingService: EmbeddingService, conversationRepository: ConversationRepository,
@@ -67,39 +67,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let embedRepo = appState.embeddingRepository
         let embedService = appState.embeddingService
 
-        if #available(macOS 26.0, *) {
-            let generator = AppleFMGenerator()
-            let queue = ProcessingQueue(
-                repository: repo,
-                generator: generator,
-                embeddingService: embedService,
-                embeddingRepository: embedRepo
-            )
-            processingQueue = queue
-            appState.processingQueueRef = queue
-            coordinator = CaptureCoordinator(repository: repo, processingQueue: queue)
+        coordinator = CaptureCoordinator(repository: repo, processingQueue: nil)
+        NSLog("[Campsis] Coordinator initialized, shortcuts registered")
 
-            let searchEngine = VectorSearchEngine(
-                embeddingService: embedService,
-                embeddingRepository: embedRepo,
-                sourceRepository: repo
+        Task {
+            await self.initializeModels(repo: repo, embedRepo: embedRepo, embedService: embedService)
+        }
+    }
+
+    private func initializeModels(repo: SourceRepository, embedRepo: EmbeddingRepository, embedService: EmbeddingService) async {
+        let mlxGenerator = MLXGenerator()
+        var generator: TextGenerator = mlxGenerator
+
+        var mlxContainer: ModelContainer?
+        do {
+            try await mlxGenerator.preload()
+            mlxContainer = await mlxGenerator.getLoadedContainer()
+            NSLog("[Campsis] MLX model loaded — using Qwen3-4B for analysis and chat")
+        } catch {
+            NSLog("[Campsis] MLX model unavailable (\(error.localizedDescription)), falling back to Apple FM")
+            if #available(macOS 26.0, *) {
+                generator = AppleFMGenerator()
+            }
+        }
+
+        let queue = ProcessingQueue(
+            repository: repo,
+            generator: generator,
+            embeddingService: embedService,
+            embeddingRepository: embedRepo
+        )
+        processingQueue = queue
+
+        await MainActor.run {
+            appState.processingQueueRef = queue
+        }
+
+        coordinator?.updateProcessingQueue(queue)
+
+        let searchEngine = VectorSearchEngine(
+            embeddingService: embedService,
+            embeddingRepository: embedRepo,
+            sourceRepository: repo
+        )
+
+        if let container = mlxContainer {
+            let chatEngine = MLXChatEngine(
+                searchEngine: searchEngine,
+                conversationRepository: appState.conversationRepository,
+                messageRepository: appState.messageRepository,
+                sourceRepository: repo,
+                modelContainer: container
             )
-            let chatEngine = ChatEngine(
+            await MainActor.run {
+                appState.chatEngineRef = chatEngine
+            }
+        } else if #available(macOS 26.0, *) {
+            let chatEngine = AppleFMChatEngine(
                 searchEngine: searchEngine,
                 conversationRepository: appState.conversationRepository,
                 messageRepository: appState.messageRepository,
                 sourceRepository: repo
             )
-            appState.chatEngineRef = chatEngine
-
-            Task {
-                await queue.processAllPending()
-                await queue.embedAllMissing()
+            await MainActor.run {
+                appState.chatEngineRef = chatEngine
             }
-        } else {
-            coordinator = CaptureCoordinator(repository: repo, processingQueue: nil)
         }
 
-        NSLog("[Campsis] Coordinator initialized, shortcuts registered")
+        Task {
+            await queue.processAllPending()
+            await queue.embedAllMissing()
+        }
     }
 }

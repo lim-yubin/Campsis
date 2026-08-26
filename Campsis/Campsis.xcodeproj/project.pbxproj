@@ -115,6 +115,10 @@
 				AA000003303E00000063E808 /* GRDB */,
 				AA000004303E00000063E808 /* KeyboardShortcuts */,
 				AA000007303E00000063E808 /* Transformers */,
+				AA000009303E00000063E808 /* MLXLLM */,
+				AA000010303E00000063E808 /* MLXLMCommon */,
+				AA000012303E00000063E808 /* MLXHuggingFace */,
+				AA000013303E00000063E808 /* HuggingFace */,
 			);
 			productName = Campsis;
 			productReference = FA557E54303DACD10063E808 /* Campsis.app */;
@@ -203,6 +207,8 @@
 				AA000001303E00000063E808 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				AA000002303E00000063E808 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				AA000006303E00000063E808 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				AA000008303E00000063E808 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				AA000011303E00000063E808 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FA557E55303DACD10063E808 /* Products */;
@@ -614,6 +620,22 @@
 				minimumVersion = 0.1.0;
 			};
 		};
+		AA000008303E00000063E808 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		AA000011303E00000063E808 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-huggingface.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -636,6 +658,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA000006303E00000063E808 /* XCRemoteSwiftPackageReference "swift-transformers" */;
 			productName = Transformers;
+		};
+		AA000009303E00000063E808 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000008303E00000063E808 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		AA000010303E00000063E808 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000008303E00000063E808 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		AA000012303E00000063E808 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000008303E00000063E808 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		AA000013303E00000063E808 /* HuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000011303E00000063E808 /* XCRemoteSwiftPackageReference "swift-huggingface" */;
+			productName = HuggingFace;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

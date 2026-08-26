@@ -9,7 +9,7 @@ case "${1:-run}" in
     echo "▶ Building..."
     xcodebuild -project "$PROJECT_DIR/Campsis.xcodeproj" \
       -scheme Campsis -configuration Debug \
-      SYMROOT="$BUILD_DIR" -quiet
+      SYMROOT="$BUILD_DIR" -skipPackagePluginValidation -skipMacroValidation -quiet
     echo "✓ Build succeeded: $BUILD_DIR/Debug/Campsis.app"
     ;;
 
@@ -17,7 +17,7 @@ case "${1:-run}" in
     echo "▶ Building..."
     xcodebuild -project "$PROJECT_DIR/Campsis.xcodeproj" \
       -scheme Campsis -configuration Debug \
-      SYMROOT="$BUILD_DIR" -quiet
+      SYMROOT="$BUILD_DIR" -skipPackagePluginValidation -skipMacroValidation -quiet
     echo "✓ Build succeeded"
 
     pkill -x Campsis 2>/dev/null && sleep 0.5 || true
@@ -45,7 +45,7 @@ case "${1:-run}" in
     xcodebuild -project "$PROJECT_DIR/Campsis.xcodeproj" \
       -scheme Campsis -configuration Debug \
       -only-testing:CampsisTests test \
-      SYMROOT="$BUILD_DIR" -quiet
+      SYMROOT="$BUILD_DIR" -skipPackagePluginValidation -skipMacroValidation -quiet
     echo "✓ All tests passed"
     ;;
 

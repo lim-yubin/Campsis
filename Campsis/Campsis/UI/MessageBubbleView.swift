@@ -35,17 +35,23 @@ struct MessageBubbleView: View {
     }
 
     private var bubble: some View {
-        Text(message.content)
-            .font(.body)
-            .textSelection(.enabled)
-            .padding(14)
-            .background(
-                message.role == .user
-                    ? Color.blue.opacity(0.1)
-                    : Color(.controlBackgroundColor),
-                in: RoundedRectangle(cornerRadius: 12)
-            )
-            .frame(maxWidth: 600, alignment: message.role == .user ? .trailing : .leading)
+        Group {
+            if message.role == .assistant {
+                MarkdownTextView(text: message.content)
+            } else {
+                Text(message.content)
+                    .font(.body)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(14)
+        .background(
+            message.role == .user
+                ? Color.blue.opacity(0.1)
+                : Color(.controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .frame(maxWidth: 600, alignment: message.role == .user ? .trailing : .leading)
     }
 
     @ViewBuilder

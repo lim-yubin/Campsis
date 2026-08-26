@@ -4,12 +4,16 @@ import KeyboardShortcuts
 @Observable
 final class CaptureCoordinator {
     private let repository: SourceRepository
-    private let processingQueue: ProcessingQueue?
+    private var processingQueue: ProcessingQueue?
 
     init(repository: SourceRepository, processingQueue: ProcessingQueue?) {
         self.repository = repository
         self.processingQueue = processingQueue
         registerShortcuts()
+    }
+
+    func updateProcessingQueue(_ queue: ProcessingQueue) {
+        self.processingQueue = queue
     }
 
     private func registerShortcuts() {

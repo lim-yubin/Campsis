@@ -1,29 +1,15 @@
 import Foundation
-import MLXLMCommon
+import FoundationModels
 
-struct ChatResponse: Sendable {
-    let answer: String
-    let sources: [SearchResult]
-}
-
-protocol ChatEngineProtocol: Sendable {
-    func send(query: String, conversationId: String) async throws -> ChatResponse
-    func resetSession() async
-}
-
-nonisolated private struct SendableChatSession: @unchecked Sendable {
-    let session: ChatSession
-}
-
-actor MLXChatEngine: ChatEngineProtocol {
+@available(macOS 26.0, *)
+actor AppleFMChatEngine: ChatEngineProtocol {
     private let searchEngine: VectorSearchEngine
     private let conversationRepository: ConversationRepository
     private let messageRepository: MessageRepository
     private let sourceRepository: SourceRepository
-    private let maxContextChars = 8000
-    private let modelContainer: ModelContainer
+    private let maxContextChars = 5000
 
-    private var chatSession: SendableChatSession?
+    private var session: LanguageModelSession?
     private var currentConversationId: String?
 
     private let instructions = """
@@ -44,18 +30,16 @@ actor MLXChatEngine: ChatEngineProtocol {
     init(searchEngine: VectorSearchEngine,
          conversationRepository: ConversationRepository,
          messageRepository: MessageRepository,
-         sourceRepository: SourceRepository,
-         modelContainer: ModelContainer) {
+         sourceRepository: SourceRepository) {
         self.searchEngine = searchEngine
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
         self.sourceRepository = sourceRepository
-        self.modelContainer = modelContainer
     }
 
     func send(query: String, conversationId: String) async throws -> ChatResponse {
         if currentConversationId != conversationId {
-            chatSession = nil
+            session = nil
             currentConversationId = conversationId
         }
 
@@ -74,54 +58,51 @@ actor MLXChatEngine: ChatEngineProtocol {
                 """
         }
 
-        if chatSession == nil {
-            let previousMessages = try messageRepository.fetchLast(
-                conversationId: conversationId, limit: 6)
-
-            var history: [Chat.Message] = []
-            for msg in previousMessages {
-                let role: Chat.Message.Role = msg.role == .user ? .user : .assistant
-                history.append(.init(role: role, content: msg.content))
+        if session == nil {
+            let model = SystemLanguageModel.default
+            guard model.isAvailable else {
+                return ChatResponse(
+                    answer: "Apple Intelligence를 사용할 수 없습니다. 시스템 설정에서 활성화해 주세요.",
+                    sources: results
+                )
             }
 
-            chatSession = SendableChatSession(session: ChatSession(
-                modelContainer,
-                instructions: instructions,
-                history: history
-            ))
-        }
+            let previousMessages = try messageRepository.fetchLast(
+                conversationId: conversationId, limit: 4)
+            session = LanguageModelSession(model: model, instructions: instructions)
 
-        guard let wrapper = chatSession else {
-            return ChatResponse(answer: "세션 초기화 실패", sources: results)
+            for msg in previousMessages {
+                let _ = try? await session?.respond(to: msg.role == .user ? msg.content : "")
+            }
         }
 
         do {
-            let response = try await wrapper.session.respond(to: prompt)
-            return ChatResponse(answer: stripThinking(response), sources: results)
+            let response = try await session!.respond(to: prompt)
+            return ChatResponse(answer: response.content, sources: results)
+        } catch let error as LanguageModelSession.GenerationError {
+            if case .guardrailViolation = error {
+                return ChatResponse(
+                    answer: "이 질문에 대해 답변을 생성할 수 없습니다.",
+                    sources: results
+                )
+            }
+            throw error
         } catch {
             let desc = error.localizedDescription
-            if desc.contains("context") || desc.contains("memory") {
-                let newWrapper = SendableChatSession(session: ChatSession(modelContainer, instructions: instructions))
-                chatSession = newWrapper
-                let retryResponse = try await newWrapper.session.respond(to: prompt)
-                return ChatResponse(answer: stripThinking(retryResponse), sources: results)
+            if desc.contains("context window") || desc.contains("Context") {
+                session = nil
+                let model = SystemLanguageModel.default
+                session = LanguageModelSession(model: model, instructions: instructions)
+                let retryResponse = try await session!.respond(to: prompt)
+                return ChatResponse(answer: retryResponse.content, sources: results)
             }
             throw error
         }
     }
 
     func resetSession() {
-        chatSession = nil
+        session = nil
         currentConversationId = nil
-    }
-
-    private func stripThinking(_ text: String) -> String {
-        var cleaned = text
-        if let thinkEnd = cleaned.range(of: "</think>") {
-            cleaned = String(cleaned[thinkEnd.upperBound...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return cleaned
     }
 
     private func buildContext(from sources: [SearchResult]) -> String {

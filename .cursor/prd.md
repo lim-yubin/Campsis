@@ -14,7 +14,7 @@
 > 명시(§9.5), Platform/Runtime/Distribution 절 신설(§19), 확정·미결 사항을
 > Decision Log로 분리(§28).
 
-------------------------------------------------------------------------
+---
 
 ## 1. Product Summary
 
@@ -31,14 +31,14 @@ Personal Memory 앱.**
 
 대표적인 상황:
 
--   Slack, 웹페이지, 문서에서 나중에 참고하고 싶은 내용을 발견한다.
--   Cursor/IDE, Terminal, GitHub 등에서 중요한 코드·에러·기술 정보를
-    본다.
--   화면에 있는 정보를 나중에 다시 찾고 싶지만 어디에서 봤는지 기억하지
-    못한다.
--   업무/개인 아이디어가 떠올랐지만 별도로 정리하기 번거롭다.
--   오프라인 대화 직후 기억해둘 내용을 짧게 기록하고 싶다.
--   PDF 등의 기존 자료를 넣어두고 나중에 자연어로 질문하고 싶다.
+- Slack, 웹페이지, 문서에서 나중에 참고하고 싶은 내용을 발견한다.
+- Cursor/IDE, Terminal, GitHub 등에서 중요한 코드·에러·기술 정보를
+  본다.
+- 화면에 있는 정보를 나중에 다시 찾고 싶지만 어디에서 봤는지 기억하지
+  못한다.
+- 업무/개인 아이디어가 떠올랐지만 별도로 정리하기 번거롭다.
+- 오프라인 대화 직후 기억해둘 내용을 짧게 기록하고 싶다.
+- PDF 등의 기존 자료를 넣어두고 나중에 자연어로 질문하고 싶다.
 
 현재 정보는 앱, 파일, 브라우저 기록, 메모 등에 파편화되어 있으며
 사용자는 결국 "어디서 봤더라?"를 반복한다.
@@ -50,7 +50,7 @@ Personal Memory 앱.**
 
 MVP는 이 가설 하나를 검증한다.
 
-------------------------------------------------------------------------
+---
 
 ## 2. Product Principles
 
@@ -61,20 +61,20 @@ MVP는 이 가설 하나를 검증한다.
 
 핵심 mental model:
 
--   **Remember Current Context:** 지금 보고 있는 것을 기억
--   **Quick Memory:** 지금 생각하고 있는 것을 기억
--   **File Import:** 이미 존재하는 자료를 기억
+- **Remember Current Context:** 지금 보고 있는 것을 기억
+- **Quick Memory:** 지금 생각하고 있는 것을 기억
+- **File Import:** 이미 존재하는 자료를 기억
 
 ### 2.2 Local-first
 
 MVP의 기본 데이터와 AI 처리는 **사용자의 Mac 내부에서** 수행한다.
 
--   OpenAI API Key 불필요
--   Claude API Key 불필요
--   기본 Cloud LLM 없음
--   원본 Source는 로컬 저장
--   로컬 LLM 사용 (§11.7)
--   로컬 Embedding 사용 (§11.5)
+- OpenAI API Key 불필요
+- Claude API Key 불필요
+- 기본 Cloud LLM 없음
+- 원본 Source는 로컬 저장
+- 로컬 LLM 사용 (§11.7)
+- 로컬 Embedding 사용 (§11.5)
 
 **추론 서버는 존재하지 않는다.** 모델은 각 사용자 기기에서 실행되며, 서버
 측 GPU 인스턴스를 두지 않는다. Cloud는 모델 가중치를 배포하는 **정적
@@ -82,9 +82,9 @@ CDN** 역할만 담당한다(§19.4).
 
 이 구조의 결과:
 
--   사용자 Context가 기기를 떠나지 않는다 (제품의 핵심 방어선)
--   사용자당 한계비용이 0에 가깝다 --- 캡처마다 추론이 자동 실행되는
-    제품 특성상 서버 추론 모델은 비용 구조가 성립하기 어렵다
+- 사용자 Context가 기기를 떠나지 않는다 (제품의 핵심 방어선)
+- 사용자당 한계비용이 0에 가깝다 --- 캡처마다 추론이 자동 실행되는
+  제품 특성상 서버 추론 모델은 비용 구조가 성립하기 어렵다
 
 ### 2.3 Raw source and AI interpretation are separate
 
@@ -92,7 +92,7 @@ CDN** 역할만 담당한다(§19.4).
 
 예:
 
-``` text
+```text
 Source
 ├── selected text / screenshot / note / voice / file
 ├── metadata
@@ -122,17 +122,17 @@ Memory로 취급한다.
 단, 향후 MCP/외부 앱 연동 시 Context별 접근 권한을 분리할 수 있도록 확장
 가능성을 고려한다.
 
-------------------------------------------------------------------------
+---
 
 ## 3. Target User
 
 ### 3.1 MVP target
 
--   MacBook을 주 컴퓨터로 사용하는 사용자
--   하루 대부분의 디지털 활동을 Mac에서 수행
--   웹, 메신저, IDE, 문서, PDF 등을 자주 사용
--   나중에 다시 찾아볼 정보가 많음
--   AI 기반 자연어 검색에 익숙하거나 관심이 있음
+- MacBook을 주 컴퓨터로 사용하는 사용자
+- 하루 대부분의 디지털 활동을 Mac에서 수행
+- 웹, 메신저, IDE, 문서, PDF 등을 자주 사용
+- 나중에 다시 찾아볼 정보가 많음
+- AI 기반 자연어 검색에 익숙하거나 관심이 있음
 
 ### 3.2 MVP environment assumption
 
@@ -140,14 +140,14 @@ Memory로 취급한다.
 
 MVP에서 제외:
 
--   iPhone 동기화
--   Apple Watch
--   Android
--   Windows
--   여러 Mac 간 동기화
--   Cloud account sync
+- iPhone 동기화
+- Apple Watch
+- Android
+- Windows
+- 여러 Mac 간 동기화
+- Cloud account sync
 
-------------------------------------------------------------------------
+---
 
 ## 4. Core User Journey
 
@@ -212,7 +212,7 @@ MVP에서 제외:
 8.  Source를 함께 표시한다.
 9.  사용자가 Source 상세를 열어 원본을 확인한다.
 
-------------------------------------------------------------------------
+---
 
 ## 5. Capture Sources
 
@@ -222,12 +222,12 @@ MVP에서는 다음 5개만 지원한다.
 
 저장 대상:
 
--   선택된 Text
--   Application
--   Window Title
--   URL (가능한 경우)
--   Timestamp
--   User Note
+- 선택된 Text
+- Application
+- Window Title
+- URL (가능한 경우)
+- Timestamp
+- User Note
 
 Selection이 존재하면 Screenshot/OCR보다 Selected Text를 우선한다.
 
@@ -238,19 +238,19 @@ Selection이 없을 때 `Remember Current Context`를 누르면 현재 화면을
 
 저장:
 
--   Screenshot 원본
--   OCR Text
--   Application
--   Window Title
--   URL
--   Timestamp
--   User Note
+- Screenshot 원본
+- OCR Text
+- Application
+- Window Title
+- URL
+- Timestamp
+- User Note
 
 MVP에서는 VLM을 사용하지 않는다.
 
 따라서:
 
-``` text
+```text
 Screenshot
 → Apple Vision OCR
 → Text
@@ -265,11 +265,11 @@ Screenshot
 
 예:
 
--   아이디어
--   할 일 메모
--   방금 있었던 대화 요약
--   조사할 내용
--   개인적인 참고 사항
+- 아이디어
+- 할 일 메모
+- 방금 있었던 대화 요약
+- 조사할 내용
+- 개인적인 참고 사항
 
 ### 5.4 Voice Memo
 
@@ -277,13 +277,13 @@ Quick Memory 화면에서 짧은 음성을 기록할 수 있다.
 
 목적:
 
--   생각을 타이핑하기 어려운 상황
--   방금 있었던 현실 대화를 빠르게 기록
--   짧은 아이디어 기록
+- 생각을 타이핑하기 어려운 상황
+- 방금 있었던 현실 대화를 빠르게 기록
+- 짧은 아이디어 기록
 
 처리:
 
-``` text
+```text
 Audio
 → STT
 → Transcript
@@ -299,11 +299,11 @@ Audio
 
 MVP 지원 후보:
 
--   PDF
--   TXT
--   Markdown
--   PNG
--   JPG
+- PDF
+- TXT
+- Markdown
+- PNG
+- JPG
 
 우선순위:
 
@@ -313,7 +313,7 @@ MVP 지원 후보:
 
 긴 문서는 Chunking 후 검색한다.
 
-------------------------------------------------------------------------
+---
 
 ## 6. Shortcut UX
 
@@ -321,10 +321,12 @@ MVP 지원 후보:
 
 기본값 예시:
 
-  Action                     Default
-  -------------------------- -------------
-  Remember Current Context   `⌥ Space`
-  Quick Memory               `⌥ ⇧ Space`
+Action Default
+
+---
+
+Remember Current Context `⌥ Space`
+Quick Memory `⌥ ⇧ Space`
 
 실제 배포 시 macOS/주요 앱과의 충돌 여부를 확인하여 기본값을 최종
 결정한다.
@@ -335,7 +337,7 @@ MVP 지원 후보:
 
 사용자는 Settings에서 두 Global Shortcut을 직접 변경할 수 있다.
 
-``` text
+```text
 Settings > Shortcuts
 
 Remember Current Context
@@ -349,18 +351,18 @@ Quick Memory
 
 요구사항:
 
--   단축키 입력 UI 제공
--   변경 즉시 Global Hotkey 재등록
--   앱 재시작 후 유지
--   Mac 재부팅 후 유지
--   중복 Shortcut 방지
--   시스템/앱 충돌 가능성 안내
--   modifier 없는 단일 문자 등록 제한
--   Restore Defaults 지원
+- 단축키 입력 UI 제공
+- 변경 즉시 Global Hotkey 재등록
+- 앱 재시작 후 유지
+- Mac 재부팅 후 유지
+- 중복 Shortcut 방지
+- 시스템/앱 충돌 가능성 안내
+- modifier 없는 단일 문자 등록 제한
+- Restore Defaults 지원
 
 ### 6.3 Remember Current Context behavior
 
-``` text
+```text
 Shortcut
    ↓
 Selection 존재?
@@ -372,7 +374,7 @@ Selection 존재?
 
 ### 6.4 Quick Memory behavior
 
-``` text
+```text
 Shortcut
    ↓
 Quick Memory Popup
@@ -380,7 +382,7 @@ Quick Memory Popup
    └─ Voice Memo
 ```
 
-------------------------------------------------------------------------
+---
 
 ## 7. Capture Popup
 
@@ -388,7 +390,7 @@ Selected Text/Screenshot Capture 이후 작은 Popup을 표시한다.
 
 예:
 
-``` text
+```text
 ┌─────────────────────────────────────────┐
 │ ✦ Remember                              │
 │                                         │
@@ -407,17 +409,17 @@ Selected Text/Screenshot Capture 이후 작은 Popup을 표시한다.
 
 ### Requirements
 
--   Capture Preview
--   Source App 표시
--   User Note 입력
--   User Note는 선택사항
--   Enter로 빠르게 저장
--   Esc로 취소
--   Capture 실패 시 명확한 오류 표시
+- Capture Preview
+- Source App 표시
+- User Note 입력
+- User Note는 선택사항
+- Enter로 빠르게 저장
+- Esc로 취소
+- Capture 실패 시 명확한 오류 표시
 
 저장을 최대한 방해하지 않는 것이 핵심이다.
 
-------------------------------------------------------------------------
+---
 
 ## 8. User Note
 
@@ -425,15 +427,15 @@ Selected Text/Screenshot Capture 이후 작은 Popup을 표시한다.
 
 가능 대상:
 
--   Selected Text
--   Screenshot
--   File
--   Voice
--   Quick Note
+- Selected Text
+- Screenshot
+- File
+- Voice
+- Quick Note
 
 개념:
 
-``` text
+```text
 Raw Context
 = 내가 무엇을 봤는가
 
@@ -443,7 +445,7 @@ User Context
 
 예:
 
-``` text
+```text
 OCR:
 "Refresh Token Family invalidation ..."
 
@@ -453,7 +455,7 @@ User Note:
 
 검색 시 User Note는 강한 의미 신호로 활용한다.
 
-------------------------------------------------------------------------
+---
 
 ## 9. Data Model
 
@@ -463,7 +465,7 @@ MVP에서는 복잡한 Knowledge Graph를 만들지 않는다.
 
 예시 스키마:
 
-``` text
+```text
 Source
 - id
 - type
@@ -484,7 +486,7 @@ Source
 
 `type`:
 
-``` text
+```text
 selected_text
 screenshot
 note
@@ -494,7 +496,7 @@ file
 
 ### 9.2 AI Metadata
 
-``` text
+```text
 SourceAIData
 - source_id
 - summary
@@ -508,7 +510,7 @@ SourceAIData
 
 파일처럼 긴 Source용.
 
-``` text
+```text
 Chunk
 - id
 - source_id
@@ -524,20 +526,20 @@ PDF의 경우 page 정보를 metadata로 유지하는 것을 권장한다.
 
 Selected Text/Screenshot/Note/Voice처럼 짧은 Source:
 
-``` text
+```text
 Source → Searchable Text → Embedding
 ```
 
 긴 File:
 
-``` text
+```text
 File → Chunks → Embedding per Chunk
 ```
 
 Embedding은 Chunk/Source에 인라인으로 두지 않고 별도 레코드로 분리한다.
 모델 교체 시 벡터만 재생성하고 원본을 보존해야 하기 때문이다.
 
-``` text
+```text
 Embedding
 - id
 - target_type        (source | chunk)
@@ -555,25 +557,25 @@ Embedding
 
 이유:
 
--   서로 다른 임베딩 모델이 생성한 벡터는 **비교 자체가 불가능하다**
--   따라서 기기 성능에 따라 다른 임베딩 모델을 쓰는 구성은 성립하지
-    않는다 --- Embedding은 **모든 배포 티어에서 동일해야 한다**(§11.9)
--   모델을 교체하면 저장된 **모든 Source/Chunk를 재색인**해야 한다
+- 서로 다른 임베딩 모델이 생성한 벡터는 **비교 자체가 불가능하다**
+- 따라서 기기 성능에 따라 다른 임베딩 모델을 쓰는 구성은 성립하지
+  않는다 --- Embedding은 **모든 배포 티어에서 동일해야 한다**(§11.9)
+- 모델을 교체하면 저장된 **모든 Source/Chunk를 재색인**해야 한다
 
 요구사항:
 
--   모든 Embedding 레코드에 `embedding_model`과 `embedding_version`을
-    기록한다
--   Searchable Text 구성 규칙(§10)이 바뀌면 `embedding_version`을
-    올린다 --- 같은 모델이라도 입력 구성이 달라지면 벡터가 달라진다
--   검색 시 현재 활성 모델과 다른 버전의 벡터는 결과에서 제외한다
--   재색인은 **백그라운드 재개 가능한 작업**으로 구현한다. 수천 개
-    Source를 가진 사용자에게 앱이 멈춘 것처럼 보이지 않아야 한다
--   재색인 진행률을 사용자에게 표시한다
+- 모든 Embedding 레코드에 `embedding_model`과 `embedding_version`을
+  기록한다
+- Searchable Text 구성 규칙(§10)이 바뀌면 `embedding_version`을
+  올린다 --- 같은 모델이라도 입력 구성이 달라지면 벡터가 달라진다
+- 검색 시 현재 활성 모델과 다른 버전의 벡터는 결과에서 제외한다
+- 재색인은 **백그라운드 재개 가능한 작업**으로 구현한다. 수천 개
+  Source를 가진 사용자에게 앱이 멈춘 것처럼 보이지 않아야 한다
+- 재색인 진행률을 사용자에게 표시한다
 
 이 정책이 없으면 모델 업그레이드가 곧 데이터 손실이 된다.
 
-------------------------------------------------------------------------
+---
 
 ## 10. Searchable Text Construction
 
@@ -581,7 +583,7 @@ Embedding 전에 Source별 검색용 Text를 구성한다.
 
 예:
 
-``` text
+```text
 [User Note]
 인증 서버 구현할 때 참고
 
@@ -602,7 +604,7 @@ auth-service
 
 특히 User Note는 사용자의 의도를 직접 표현하므로 높은 가치가 있다.
 
-------------------------------------------------------------------------
+---
 
 ## 11. AI Architecture
 
@@ -611,21 +613,21 @@ auth-service
 **단일 모델이 모든 것을 처리하지 않는다.** 요구사항이 서로 다른 5개
 역할로 분리하고, 각 역할의 모델을 독립적으로 교체할 수 있도록 설계한다.
 
-| Role | 목적 | 실행 시점 | 지연 민감도 | 교체 난이도 |
-|---|---|---|---|---|
-| OCR | Screenshot/Image → Text | Capture | 낮음 | 낮음 |
-| Embedding | 검색 인덱스 생성 | Capture + Query | 낮음 | **매우 높음** |
-| Reranker | 검색 후보 재정렬 | Query | 높음 | 낮음 |
-| Generation (Analysis) | Summary / Topics | Capture (비동기) | 없음 | 낮음 |
-| Generation (Answer) | 근거 기반 답변 생성 | Query | 높음 | 낮음 |
-| STT | Voice → Transcript | Capture | 중간 | 낮음 |
+| Role                  | 목적                    | 실행 시점        | 지연 민감도 | 교체 난이도   |
+| --------------------- | ----------------------- | ---------------- | ----------- | ------------- |
+| OCR                   | Screenshot/Image → Text | Capture          | 낮음        | 낮음          |
+| Embedding             | 검색 인덱스 생성        | Capture + Query  | 낮음        | **매우 높음** |
+| Reranker              | 검색 후보 재정렬        | Query            | 높음        | 낮음          |
+| Generation (Analysis) | Summary / Topics        | Capture (비동기) | 없음        | 낮음          |
+| Generation (Answer)   | 근거 기반 답변 생성     | Query            | 높음        | 낮음          |
+| STT                   | Voice → Transcript      | Capture          | 중간        | 낮음          |
 
 Embedding만 사실상 되돌릴 수 없다(§9.5). 나머지는 언제든 교체 가능하므로
 MVP에서 완벽한 선택을 강요하지 않는다.
 
 ### 11.2 Local-first pipeline
 
-``` text
+```text
 Mac
  │
  ├── Apple Vision          → Screenshot / Image OCR
@@ -647,23 +649,23 @@ Mac
 
 근거:
 
--   PyInstaller 등이 생성하는 `Python.framework`는 표준 번들 구조가
-    아니어서 `codesign`이 거부한다("bundle format is ambiguous").
-    프레임워크 구조를 수동 복구해야 서명이 통과하며, 이 취약한 단계를
-    매 릴리스마다 통과해야 한다(§19.3)
--   Python 런타임 번들은 앱 크기를 수십 MB에서 수백 MB로 키운다
--   서브프로세스 + IPC 구조는 상주형 메뉴바 앱에서 프로세스 수명과
-    메모리를 추적하기 어렵게 만든다
+- PyInstaller 등이 생성하는 `Python.framework`는 표준 번들 구조가
+  아니어서 `codesign`이 거부한다("bundle format is ambiguous").
+  프레임워크 구조를 수동 복구해야 서명이 통과하며, 이 취약한 단계를
+  매 릴리스마다 통과해야 한다(§19.3)
+- Python 런타임 번들은 앱 크기를 수십 MB에서 수백 MB로 키운다
+- 서브프로세스 + IPC 구조는 상주형 메뉴바 앱에서 프로세스 수명과
+  메모리를 추적하기 어렵게 만든다
 
 역할별 런타임:
 
-| Role | Runtime |
-|---|---|
-| OCR | Apple Vision (native) |
-| Embedding | Core ML (ANE 우선) --- 변환 가능성 검증 필요 |
-| Reranker | Core ML 또는 MLX Swift |
-| Generation | Apple Foundation Models / MLX Swift |
-| STT | WhisperKit (Core ML) |
+| Role       | Runtime                                      |
+| ---------- | -------------------------------------------- |
+| OCR        | Apple Vision (native)                        |
+| Embedding  | Core ML (ANE 우선) --- 변환 가능성 검증 필요 |
+| Reranker   | Core ML 또는 MLX Swift                       |
+| Generation | Apple Foundation Models / MLX Swift          |
+| STT        | WhisperKit (Core ML)                         |
 
 Python은 **출하되지 않는 평가·실험 스크립트에만** 사용한다(§25 Phase 0).
 
@@ -673,15 +675,15 @@ Apple이 WWDC26에서 `LanguageModel` 프로토콜과 `MLXLanguageModel`을
 공개했으나, 이를 이용해 MLX를 `LanguageModelSession`으로 통합하는
 `MLXFoundationModels`는 **macOS 27.0 SDK를 요구한다.**
 
-| 기능 | macOS 26 | macOS 27 SDK |
-|---|---|---|
-| Apple FM (`SystemLanguageModel`, `@Generable`) | **가능** | 가능 |
-| MLX 직접 사용 (`MLXLLM` / `MLXLMCommon`) | **가능** | 가능 |
-| 둘을 `LanguageModelSession`으로 통합 | 불가 | 가능 |
+| 기능                                           | macOS 26 | macOS 27 SDK |
+| ---------------------------------------------- | -------- | ------------ |
+| Apple FM (`SystemLanguageModel`, `@Generable`) | **가능** | 가능         |
+| MLX 직접 사용 (`MLXLLM` / `MLXLMCommon`)       | **가능** | 가능         |
+| 둘을 `LanguageModelSession`으로 통합           | 불가     | 가능         |
 
 **결정: Apple의 통합 추상화를 사용하지 않고 자체 프로토콜을 정의한다.**
 
-``` swift
+```swift
 protocol TextGenerator {
     func analyze(_ text: String) async throws -> Analysis   // Summary + Topics
     func answer(question: String, sources: [Source]) async throws -> String
@@ -693,15 +695,15 @@ struct MLXGenerator: TextGenerator     { /* MLXLLM */ }
 
 근거:
 
--   Deployment Target을 macOS 26으로 유지할 수 있다. 27을 요구하면 출시
-    시점의 사용 가능 기기가 크게 줄어든다
--   구현 비용이 낮다 (프로토콜 + 2개 구현체)
--   추후 타겟을 27로 올리면 Apple 추상화로 이전할 수 있다 --- 이전하지
-    않아도 무방하다
+- Deployment Target을 macOS 26으로 유지할 수 있다. 27을 요구하면 출시
+  시점의 사용 가능 기기가 크게 줄어든다
+- 구현 비용이 낮다 (프로토콜 + 2개 구현체)
+- 추후 타겟을 27로 올리면 Apple 추상화로 이전할 수 있다 --- 이전하지
+  않아도 무방하다
 
 #### MLX Swift 의존성
 
-``` swift
+```swift
 .package(url: "https://github.com/ml-explore/mlx-swift-lm", .upToNextMajor(from: "3.31.3")),
 .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
 .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
@@ -721,7 +723,7 @@ struct MLXGenerator: TextGenerator     { /* MLXLLM */ }
 
 Apple Vision의 역할은 **OCR**이다.
 
-``` text
+```text
 Screenshot → OCR Text
 ```
 
@@ -735,46 +737,46 @@ Screenshot → OCR Text
 
 **요구사항**
 
--   Local execution (Apple Silicon)
--   한국어/영어 혼합 검색 성능
--   작은 모델 크기 (상시 상주 가능)
--   **상업 재배포 가능한 License** (§19 직접 배포 전제)
--   **Core ML 또는 MLX Swift에서 실행 가능** (§11.3)
+- Local execution (Apple Silicon)
+- 한국어/영어 혼합 검색 성능
+- 작은 모델 크기 (상시 상주 가능)
+- **상업 재배포 가능한 License** (§19 직접 배포 전제)
+- **Core ML 또는 MLX Swift에서 실행 가능** (§11.3)
 
 **후보 및 한국어 리트리벌 성능**
 
 출처: telepix 모델 카드 (NDCG@10, Korean-MTEB-Retrieval-Evaluators 코드베이스).
 License는 2026-08-25 HuggingFace API로 전수 확인했다.
 
-| 모델 | 크기 | 아키텍처 | STELLA(XL) | MTEB(ko) | License |
-|---|---|---|---|---|---|
-| telepix/PIXIE-Spell-v1.5-0.6B | 0.6B | Qwen3 디코더 | 0.6731 | 0.7717 | Apache 2.0 |
-| telepix/PIXIE-Rune-v1.5 | 0.5B | XLM-R 인코더 | 0.6559 | 0.7651 | Apache 2.0 |
-| BAAI/bge-m3 | 0.5B | XLM-R 인코더 | 0.5056 | 0.7483 | MIT |
-| Snowflake/arctic-embed-l-v2.0 | 0.5B | XLM-R 인코더 | 0.5448 | 0.7390 | Apache 2.0 |
-| Qwen/Qwen3-Embedding-0.6B | 0.6B | Qwen3 디코더 | 0.4707 | 0.7017 | Apache 2.0 |
-| openai/text-embedding-3-large | API | --- | N/A | 0.6646 | 상용 API |
+| 모델                          | 크기 | 아키텍처     | STELLA(XL) | MTEB(ko) | License    |
+| ----------------------------- | ---- | ------------ | ---------- | -------- | ---------- |
+| telepix/PIXIE-Spell-v1.5-0.6B | 0.6B | Qwen3 디코더 | 0.6731     | 0.7717   | Apache 2.0 |
+| telepix/PIXIE-Rune-v1.5       | 0.5B | XLM-R 인코더 | 0.6559     | 0.7651   | Apache 2.0 |
+| BAAI/bge-m3                   | 0.5B | XLM-R 인코더 | 0.5056     | 0.7483   | MIT        |
+| Snowflake/arctic-embed-l-v2.0 | 0.5B | XLM-R 인코더 | 0.5448     | 0.7390   | Apache 2.0 |
+| Qwen/Qwen3-Embedding-0.6B     | 0.6B | Qwen3 디코더 | 0.4707     | 0.7017   | Apache 2.0 |
+| openai/text-embedding-3-large | API  | ---          | N/A        | 0.6646   | 상용 API   |
 
 `dragonkue/BGE-m3-ko`(Apache 2.0)는 위 표에 없으나 후보로 유지한다.
 
 **판단 근거**
 
--   **모든 후보의 License가 확보됐다.** PIXIE 계열도 Apache 2.0이다.
-    Rune은 XLM-RoBERTa 24층/1024dim 구성으로 bge-m3(MIT) 파생이고, Spell은
-    Qwen3-Embedding(Apache 2.0) 파생이다. 두 사슬 모두 재배포에 문제가 없다
--   **벤치마크에 따라 격차가 크게 다르다.** STELLA에서는 PIXIE-Rune이
-    bge-m3를 0.15 앞서지만 MTEB(ko)에서는 0.017 차이다. 단일 순위표로
-    판단할 수 없다는 뜻이므로 게이트 1이 더 중요해진다
--   **성적 1위와 아키텍처 적합성이 어긋난다.** Spell이 성적은 높지만 Qwen3
-    디코더(28층, 40960 ctx)라 Core ML/ANE 변환이 어렵다. 임베딩은 모든
-    캡처마다 실행되므로(§11.10 Capture 경로) ANE 실행 여부가 배터리에 직접
-    영향을 준다. 인코더 계열(Rune, bge-m3, bge-m3-ko, arctic)이 게이트 3에서
-    유리하다
--   "Qwen으로 통일"은 임베딩에서는 오답이다. Qwen3-Embedding의 8B는
-    MTEB 다국어 최상위지만, 0.6B로 내려오면 한국어에서 bge-m3보다
-    떨어진다
--   OpenAI 최상급 임베딩이 오픈웨이트 0.5B보다 한국어에서 밀린다 ---
-    로컬 선택이 품질 타협이 아님을 뒷받침한다
+- **모든 후보의 License가 확보됐다.** PIXIE 계열도 Apache 2.0이다.
+  Rune은 XLM-RoBERTa 24층/1024dim 구성으로 bge-m3(MIT) 파생이고, Spell은
+  Qwen3-Embedding(Apache 2.0) 파생이다. 두 사슬 모두 재배포에 문제가 없다
+- **벤치마크에 따라 격차가 크게 다르다.** STELLA에서는 PIXIE-Rune이
+  bge-m3를 0.15 앞서지만 MTEB(ko)에서는 0.017 차이다. 단일 순위표로
+  판단할 수 없다는 뜻이므로 게이트 1이 더 중요해진다
+- **성적 1위와 아키텍처 적합성이 어긋난다.** Spell이 성적은 높지만 Qwen3
+  디코더(28층, 40960 ctx)라 Core ML/ANE 변환이 어렵다. 임베딩은 모든
+  캡처마다 실행되므로(§11.10 Capture 경로) ANE 실행 여부가 배터리에 직접
+  영향을 준다. 인코더 계열(Rune, bge-m3, bge-m3-ko, arctic)이 게이트 3에서
+  유리하다
+- "Qwen으로 통일"은 임베딩에서는 오답이다. Qwen3-Embedding의 8B는
+  MTEB 다국어 최상위지만, 0.6B로 내려오면 한국어에서 bge-m3보다
+  떨어진다
+- OpenAI 최상급 임베딩이 오픈웨이트 0.5B보다 한국어에서 밀린다 ---
+  로컬 선택이 품질 타협이 아님을 뒷받침한다
 
 **프롬프트 관례 주의** --- 모델마다 질문 접두어가 다르고 틀리면 성적이
 부당하게 낮게 나온다. bge 계열은 접두어가 없고, PIXIE-Rune과 arctic은
@@ -805,7 +807,7 @@ License는 2026-08-25 HuggingFace API로 전수 확인했다.
 근거: 본 제품의 저장 데이터는 OCR 노이즈, 문맥이 잘린 텍스트 조각, 한영
 혼용 기술 용어가 뒤섞여 있어 순수 벡터 유사도만으로는 오탐이 많다.
 
-``` text
+```text
 Embedding으로 Top-N (50~100) 넉넉히 회수
         ↓
 Cross-encoder로 정밀 재정렬
@@ -815,11 +817,11 @@ Top-K (5~10)만 Generation에 전달
 
 **후보: Qwen/Qwen3-Reranker-0.6B**
 
--   Context 32K
--   한국어 포함 다국어 지원
--   Apache 2.0 (재배포 가능)
--   Q6_K 양자화 약 472MB --- 상주 부담 낮음
--   MTEB-R 65.80 (동급 BGE-reranker-v2-m3는 57.03)
+- Context 32K
+- 한국어 포함 다국어 지원
+- Apache 2.0 (재배포 가능)
+- Q6_K 양자화 약 472MB --- 상주 부담 낮음
+- MTEB-R 65.80 (동급 BGE-reranker-v2-m3는 57.03)
 
 Reranker는 모든 배포 티어에서 동일하게 적용한다. 교체가 자유로우므로
 Embedding과 달리 부담 없이 실험할 수 있다.
@@ -834,21 +836,21 @@ Embedding과 달리 부담 없이 실험할 수 있다.
 
 **1순위: Apple Foundation Models (`SystemLanguageModel`)**
 
--   `@Generable` 매크로로 **출력 타입이 보장된다.** Topics 배열 추출에서
-    JSON 파싱 실패가 원천 차단된다 --- 소형 로컬 모델로 구조화 출력을
-    뽑을 때 가장 큰 실패 요인이 제거된다
--   모델 다운로드 없음 → 앱 크기 영향 없음, 첫 실행 즉시 동작
--   OS가 모델을 전 앱과 공유·관리 → **앱의 상주 메모리 부담 없음**
--   무료, API Key 불필요 → §2.2와 일치
+- `@Generable` 매크로로 **출력 타입이 보장된다.** Topics 배열 추출에서
+  JSON 파싱 실패가 원천 차단된다 --- 소형 로컬 모델로 구조화 출력을
+  뽑을 때 가장 큰 실패 요인이 제거된다
+- 모델 다운로드 없음 → 앱 크기 영향 없음, 첫 실행 즉시 동작
+- OS가 모델을 전 앱과 공유·관리 → **앱의 상주 메모리 부담 없음**
+- 무료, API Key 불필요 → §2.2와 일치
 
 **제약 및 폴백 요건**
 
--   Context 8,192 토큰 → 긴 OCR/Chunk는 분할 필요
--   약 3B 제너럴리스트 → 복잡한 종합 추론에는 부적합
--   **가드레일 오탐** --- 임의의 웹 컨텐츠를 저장하는 제품 특성상 요약을
-    거부당하는 케이스가 발생할 수 있다. 발생률 실측이 필요하며, 거부 시
-    MLX 백엔드로 폴백해야 한다
--   Apple Intelligence 지원 기기 필요
+- Context 8,192 토큰 → 긴 OCR/Chunk는 분할 필요
+- 약 3B 제너럴리스트 → 복잡한 종합 추론에는 부적합
+- **가드레일 오탐** --- 임의의 웹 컨텐츠를 저장하는 제품 특성상 요약을
+  거부당하는 케이스가 발생할 수 있다. 발생률 실측이 필요하며, 거부 시
+  MLX 백엔드로 폴백해야 한다
+- Apple Intelligence 지원 기기 필요
 
 #### 11.7.2 Answer Generation
 
@@ -857,8 +859,8 @@ Embedding과 달리 부담 없이 실험할 수 있다.
 
 **1순위: Qwen 3.5 계열 (MLX Swift)**
 
--   201개 언어 지원, CJK 강점 → **한국어에서 Gemma 4보다 우위**
--   Apache 2.0 (재배포 가능)
+- 201개 언어 지원, CJK 강점 → **한국어에서 Gemma 4보다 우위**
+- Apache 2.0 (재배포 가능)
 
 **대안 검토 대상: Gemma 4 E4B** --- 소형 모델 중 환각률이 가장 낮다.
 §12.2의 "근거 없으면 답하지 않기" 정책이 Qwen에서 잘 지켜지지 않을 경우
@@ -868,11 +870,11 @@ Embedding과 달리 부담 없이 실험할 수 있다.
 
 **후보: Whisper large-v3-turbo (WhisperKit / Core ML)**
 
-| 모델 | 한국어 CER | 속도(RTFx) | 비고 |
-|---|---|---|---|
-| Whisper large-v3-turbo (809M) | 5.59% | 13~14× | 101개 언어, 정확도 우위 |
-| SenseVoice Small | 8.28% | 52~118× | CJK 특화, 15× 빠름 |
-| Parakeet V3 | **미지원** | 103~161× | 한국어 없음 --- **제외** |
+| 모델                          | 한국어 CER | 속도(RTFx) | 비고                     |
+| ----------------------------- | ---------- | ---------- | ------------------------ |
+| Whisper large-v3-turbo (809M) | 5.59%      | 13~14×     | 101개 언어, 정확도 우위  |
+| SenseVoice Small              | 8.28%      | 52~118×    | CJK 특화, 15× 빠름       |
+| Parakeet V3                   | **미지원** | 103~161×   | 한국어 없음 --- **제외** |
 
 판단: Voice Memo는 짧은 메모로 한정되므로(§17) 속도보다 정확도를
 우선한다. 30초 메모에서 2초와 5초의 차이는 무의미하다.
@@ -887,12 +889,12 @@ Embedding과 달리 부담 없이 실험할 수 있다.
 배포 대상 기기는 8GB\~128GB로 편차가 크다. 기기 메모리를 감지해 티어를
 자동 선택한다.
 
-| RAM | Analysis | Answer Generation |
-|---|---|---|
-| 8\~15GB | Apple Foundation Models | Apple Foundation Models |
+| RAM      | Analysis                | Answer Generation             |
+| -------- | ----------------------- | ----------------------------- |
+| 8\~15GB  | Apple Foundation Models | Apple Foundation Models       |
 | 16\~23GB | Apple Foundation Models | Qwen3.5-4B-4bit (피크 ~5.8GB) |
-| 24GB+ | Apple Foundation Models | Qwen3.5-9B-4bit (피크 ~8.7GB) |
-| 48GB+ | Apple Foundation Models | Qwen3.5-9B 또는 35B-A3B (MoE) |
+| 24GB+    | Apple Foundation Models | Qwen3.5-9B-4bit (피크 ~8.7GB) |
+| 48GB+    | Apple Foundation Models | Qwen3.5-9B 또는 35B-A3B (MoE) |
 
 **Embedding과 Reranker는 티어와 무관하게 전 기기 동일하다.** Embedding은
 벡터 호환성 때문에 티어링이 원리적으로 불가능하다(§9.5).
@@ -906,14 +908,14 @@ Apple Foundation Models를 Analysis 기본값으로 두면 하드웨어 티어�
 역할별로 보면 MLX가 필요한 곳은 **Answer Generation 하나뿐**이며, 그조차
 기본 티어에서는 Apple Foundation Models가 담당한다.
 
-| Role | Runtime | MLX 필요 |
-|---|---|---|
-| OCR | Apple Vision | 아니오 |
-| Embedding | Core ML | 아니오 |
-| Reranker | Core ML | 아니오 |
-| Analysis | Apple Foundation Models | 아니오 |
-| Answer | Apple FM (기본) / MLX (상위 티어) | 상위 티어만 |
-| STT | WhisperKit | 아니오 |
+| Role      | Runtime                           | MLX 필요    |
+| --------- | --------------------------------- | ----------- |
+| OCR       | Apple Vision                      | 아니오      |
+| Embedding | Core ML                           | 아니오      |
+| Reranker  | Core ML                           | 아니오      |
+| Analysis  | Apple Foundation Models           | 아니오      |
+| Answer    | Apple FM (기본) / MLX (상위 티어) | 상위 티어만 |
+| STT       | WhisperKit                        | 아니오      |
 
 따라서 **MLX 없이 Capture → Recall 루프 전체가 동작하는 MVP를 만들 수
 있다.** MLX는 16GB 이상 기기의 답변 품질 업그레이드로 취급하고 Phase 3
@@ -921,12 +923,12 @@ Apple Foundation Models를 Analysis 기본값으로 두면 하드웨어 티어�
 
 이 순서의 이점:
 
--   Phase 2에서 모델 다운로드, 메모리 관리, JIT entitlement, 로딩 지연이
-    모두 발생하지 않는다 --- 파이프라인 자체에만 집중할 수 있다
--   Answer 품질이 실제로 부족한지는 Phase 3에서 사용해보고 판단한다.
-    미리 도입하면 검증되지 않은 복잡도를 먼저 짊어진다
--   Apple FM 가드레일 거부율(§28 O4)을 먼저 측정해야 MLX 폴백의 우선순위를
-    정할 수 있다
+- Phase 2에서 모델 다운로드, 메모리 관리, JIT entitlement, 로딩 지연이
+  모두 발생하지 않는다 --- 파이프라인 자체에만 집중할 수 있다
+- Answer 품질이 실제로 부족한지는 Phase 3에서 사용해보고 판단한다.
+  미리 도입하면 검증되지 않은 복잡도를 먼저 짊어진다
+- Apple FM 가드레일 거부율(§28 O4)을 먼저 측정해야 MLX 폴백의 우선순위를
+  정할 수 있다
 
 ### 11.10 Model Residency Policy
 
@@ -935,7 +937,7 @@ Apple Foundation Models를 Analysis 기본값으로 두면 하드웨어 티어�
 
 **Capture Path** --- 상시 동작, 백그라운드
 
-``` text
+```text
 Apple Vision (OS) + Embedding (Core ML / ANE) + Apple FM (OS)
 → 앱 상주 메모리 약 1GB 수준
 → ANE 중심이므로 배터리 부담 최소 (§21 목표와 정합)
@@ -943,7 +945,7 @@ Apple Vision (OS) + Embedding (Core ML / ANE) + Apple FM (OS)
 
 **Recall Path** --- 사용자가 질문할 때만
 
-``` text
+```text
 Reranker + Generation LLM을 온디맨드 로드, idle 시 해제
 → 첫 질문의 로딩 지연은 §12.1의 "Answer 생성 전 Source 먼저 표시" UX로 가린다
 ```
@@ -957,20 +959,20 @@ Screenshot은 OCR → Text → LLM 경로로만 처리한다. 향후 Screenshot 
 
 ### 11.12 MVP에서 Generation 모델에 요구하지 않는 것
 
--   완벽한 Person Graph
--   Project Graph
--   Task management
--   Decision tracking
--   Promise tracking
--   복잡한 agent behavior
+- 완벽한 Person Graph
+- Project Graph
+- Task management
+- Decision tracking
+- Promise tracking
+- 복잡한 agent behavior
 
-------------------------------------------------------------------------
+---
 
 ## 12. Retrieval and Q&A
 
 ### 12.1 Query flow
 
-``` text
+```text
 User Question
       ↓
 Query Embedding
@@ -994,8 +996,8 @@ Answer + Sources
 
 초기 파라미터 후보:
 
--   Vector Search Top-N: 50\~100개
--   Reranker 통과 Top-K: 5\~10개
+- Vector Search Top-N: 50\~100개
+- Reranker 통과 Top-K: 5\~10개
 
 실사용 품질을 보며 조정한다.
 
@@ -1022,7 +1024,7 @@ Generation 모델은 검색된 Source에 기반하여 답변한다.
 
 예:
 
-``` text
+```text
 8월 25일 저장한 내용에서는 Refresh Token 만료 기간을
 14일로 설정하고 Rotation을 적용하는 방식을 참고했습니다.
 
@@ -1033,28 +1035,28 @@ Sources
 
 Source 클릭 시 Source Detail로 이동한다.
 
-------------------------------------------------------------------------
+---
 
 ## 13. Source Detail
 
 Source 상세 화면에서 확인할 수 있어야 하는 것:
 
--   원본 Selected Text
--   Screenshot
--   File
--   Voice Transcript
--   User Note
--   OCR Text
--   AI Summary
--   Topics
--   Application
--   Window Title
--   URL
--   Captured Time
+- 원본 Selected Text
+- Screenshot
+- File
+- Voice Transcript
+- User Note
+- OCR Text
+- AI Summary
+- Topics
+- Application
+- Window Title
+- URL
+- Captured Time
 
 가능하면 원래 URL을 다시 열 수 있도록 한다.
 
-------------------------------------------------------------------------
+---
 
 ## 14. Main App UI
 
@@ -1062,7 +1064,7 @@ MVP는 복잡한 Wiki UI보다 검색/Chat 중심으로 구성한다.
 
 ### Suggested structure
 
-``` text
+```text
 Sidebar
 ├── Chat / Search
 ├── Memories
@@ -1072,7 +1074,7 @@ Sidebar
 
 ### Chat/Search
 
-``` text
+```text
 ┌──────────────────────────────────────┐
 │ Ask your memory                      │
 │                                      │
@@ -1095,16 +1097,16 @@ Sidebar
 
 필터 후보:
 
--   All
--   Text
--   Screenshot
--   Note
--   Voice
--   File
+- All
+- Text
+- Screenshot
+- Note
+- Voice
+- File
 
 고급 분류는 MVP 이후.
 
-------------------------------------------------------------------------
+---
 
 ## 15. Menu Bar App
 
@@ -1112,7 +1114,7 @@ Sidebar
 
 Menu Bar 예:
 
-``` text
+```text
 Personal Memory
 
 Quick Memory
@@ -1123,13 +1125,13 @@ Quit
 
 핵심 Global Shortcut은 앱 창이 닫혀 있어도 동작해야 한다.
 
-------------------------------------------------------------------------
+---
 
 ## 16. File Processing
 
 ### PDF
 
-``` text
+```text
 PDF
  ↓
 Text extraction
@@ -1145,7 +1147,7 @@ Embedding
 
 ### TXT / Markdown
 
-``` text
+```text
 Text
  ↓
 Chunking
@@ -1157,7 +1159,7 @@ Embedding
 
 MVP에서는:
 
-``` text
+```text
 Image
  ↓
 Apple Vision OCR
@@ -1171,7 +1173,7 @@ Embedding
 
 VLM 분석은 하지 않는다.
 
-------------------------------------------------------------------------
+---
 
 ## 17. Voice Memo
 
@@ -1181,7 +1183,7 @@ VLM 분석은 하지 않는다.
 
 예상 UX:
 
-``` text
+```text
 Quick Memory
    ↓
 Record
@@ -1202,16 +1204,16 @@ STT 모델 후보 및 선정 근거는 §11.8 참조. Voice Memo가 짧은 메�
 
 회의처럼 장시간 음성을 녹음하고:
 
--   Speaker diarization
--   참석자 구분
--   Meeting Summary
--   Decision 추출
--   Action Item 추출
+- Speaker diarization
+- 참석자 구분
+- Meeting Summary
+- Decision 추출
+- Action Item 추출
 
 등을 수행하는 기능은 **Meeting Recording**으로 정의하고 MVP에서
 제외한다.
 
-------------------------------------------------------------------------
+---
 
 ## 18. Privacy and Security
 
@@ -1220,25 +1222,25 @@ STT 모델 후보 및 선정 근거는 §11.8 참조. Voice Memo가 짧은 메�
 
 ### MVP principles
 
--   데이터 Local 저장
--   AI Local 실행 (추론 서버 없음, §2.2)
--   Cloud LLM 기본 사용 안 함
--   API Key 요구 안 함
--   필요한 macOS Permission을 명확히 설명
--   사용자가 Source 삭제 가능
--   삭제 시 관련 Chunk/Embedding/파일도 함께 제거
--   앱 제거/데이터 삭제 정책 명확화
+- 데이터 Local 저장
+- AI Local 실행 (추론 서버 없음, §2.2)
+- Cloud LLM 기본 사용 안 함
+- API Key 요구 안 함
+- 필요한 macOS Permission을 명확히 설명
+- 사용자가 Source 삭제 가능
+- 삭제 시 관련 Chunk/Embedding/파일도 함께 제거
+- 앱 제거/데이터 삭제 정책 명확화
 
 ### Permissions
 
 기능 구현 방식에 따라 다음 권한이 필요하다. 모두 TCC(Transparency,
 Consent, Control) 권한이며 App Sandbox와는 별개 계층이다(§19.1).
 
-| Permission | 용도 | 없으면 |
-|---|---|---|
-| Accessibility | Selected Text 감지 (Journey A) | Screenshot으로만 동작 |
-| Screen Recording | Screenshot 캡처, Window Title 수집 | Journey B 불가 |
-| Microphone | Voice Memo | Voice Memo 불가 |
+| Permission       | 용도                               | 없으면                |
+| ---------------- | ---------------------------------- | --------------------- |
+| Accessibility    | Selected Text 감지 (Journey A)     | Screenshot으로만 동작 |
+| Screen Recording | Screenshot 캡처, Window Title 수집 | Journey B 불가        |
+| Microphone       | Voice Memo                         | Voice Memo 불가       |
 
 권한은 실제 기능에 필요한 최소 수준으로, **해당 기능을 처음 쓰는
 시점에** 요청한다. 첫 실행에 모든 권한을 한꺼번에 요구하지 않는다.
@@ -1250,14 +1252,14 @@ Consent, Control) 권한이며 App Sandbox와는 별개 계층이다(§19.1).
 
 라이선스 검증은 **오프라인에서 완결되어야 한다.**
 
--   구매 시 서버가 개인키로 서명한 라이선스 파일을 발급한다
--   앱은 공개키만 내장하고 네트워크 없이 검증한다
--   활성화 시점에만 1회 통신하고, 이후 주기적 서버 확인을 하지 않는다
+- 구매 시 서버가 개인키로 서명한 라이선스 파일을 발급한다
+- 앱은 공개키만 내장하고 네트워크 없이 검증한다
+- 활성화 시점에만 1회 통신하고, 이후 주기적 서버 확인을 하지 않는다
 
 근거: "데이터가 기기를 떠나지 않는다"를 판매하는 제품이 주기적으로 서버에
 접속하면 제품 약속과 모순된다. 이 사용자층은 네트워크 트래픽을 감시한다.
 
-------------------------------------------------------------------------
+---
 
 ## 19. Platform, Runtime and Distribution
 
@@ -1266,15 +1268,15 @@ Consent, Control) 권한이며 App Sandbox와는 별개 계층이다(§19.1).
 **App Sandbox를 켜지 않는다.** 이는 개발 편의가 아니라 능력 경계의
 문제다.
 
-| 항목 | Sandbox ON | Sandbox OFF |
-|---|---|---|
-| Accessibility API | **불가** | 사용자 승인 후 가능 |
-| 다른 앱에 키 이벤트 주입 | 불가 | 가능 |
-| 브라우저 URL 수집 (AppleEvents) | 대상별 예외 entitlement 필요 | 가능 |
-| MLX JIT entitlement | App Store 불승인 | 공증에서 승인 |
-| 파일 저장 | 컨테이너 한정 | 임의 경로 |
-| 사용자 파일 재접근 | security-scoped bookmark 필요 | 일반 경로 |
-| Notarization | 가능 | **가능** |
+| 항목                            | Sandbox ON                    | Sandbox OFF         |
+| ------------------------------- | ----------------------------- | ------------------- |
+| Accessibility API               | **불가**                      | 사용자 승인 후 가능 |
+| 다른 앱에 키 이벤트 주입        | 불가                          | 가능                |
+| 브라우저 URL 수집 (AppleEvents) | 대상별 예외 entitlement 필요  | 가능                |
+| MLX JIT entitlement             | App Store 불승인              | 공증에서 승인       |
+| 파일 저장                       | 컨테이너 한정                 | 임의 경로           |
+| 사용자 파일 재접근              | security-scoped bookmark 필요 | 일반 경로           |
+| Notarization                    | 가능                          | **가능**            |
 
 핵심 근거: Apple 개발자 포럼에서 Apple 엔지니어가 **"샌드박스된 앱에서
 Accessibility API를 사용하는 것은 불가능하며, 사용자가 시스템 설정에서
@@ -1312,9 +1314,9 @@ Store를 쓰지 않는 이유가 아니다.
 
 필요 조건:
 
--   Apple Developer Program 유료 멤버십 (연 USD 99 수준)
--   Developer ID Application 인증서 (Account Holder 권한으로 발급)
--   서명·공증에 **추가 비용 및 횟수 제한 없음**
+- Apple Developer Program 유료 멤버십 (연 USD 99 수준)
+- Developer ID Application 인증서 (Account Holder 권한으로 발급)
+- 서명·공증에 **추가 비용 및 횟수 제한 없음**
 
 **공증은 사실상 필수다.** macOS Sequoia부터 Control-click으로 Gatekeeper를
 우회하는 방법이 제거되었다. 공증되지 않은 앱은 사용자가 시스템 설정 →
@@ -1323,7 +1325,7 @@ Store를 쓰지 않는 이유가 아니다.
 
 빌드 파이프라인 요구사항:
 
-``` text
+```text
 1. 번들에 넣을 파일을 모두 배치 (서명은 번들 내용을 봉인한다)
 2. 안쪽부터 서명: .dylib / .so → framework → app
    (--deep 플래그는 중첩 번들을 잘못 봉인할 수 있어 사용하지 않는다)
@@ -1341,7 +1343,7 @@ Store를 쓰지 않는 이유가 아니다.
 
 **Hardened Runtime entitlements (MLX 사용 시 필수)**
 
-``` xml
+```xml
 <key>com.apple.security.cs.allow-jit</key>
 <true/>
 <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
@@ -1357,25 +1359,25 @@ Store를 쓰지 않는 이유가 아니다.
 
 ### 19.4 Model Delivery
 
--   모델 가중치를 **앱 번들에 포함하지 않는다.** 앱 바이너리는 작게
-    유지한다
--   첫 실행 시 또는 Background Assets로 설치 직후 백그라운드 다운로드
--   호스팅은 **정적 CDN**(R2/S3 등)으로 충분하다. GPU 인스턴스가 아니다
--   가중치 재배포 권리가 필요하므로 **License를 반드시 확인한다**
-    (Qwen 계열 Apache 2.0, bge-m3 MIT, PIXIE 미확인 --- §11.5)
--   첫 실행 경험이 "수 GB 다운로드를 기다리세요"가 되지 않도록,
-    Apple Foundation Models 기반 기본 경험을 먼저 제공한다(§11.9)
+- 모델 가중치를 **앱 번들에 포함하지 않는다.** 앱 바이너리는 작게
+  유지한다
+- 첫 실행 시 또는 Background Assets로 설치 직후 백그라운드 다운로드
+- 호스팅은 **정적 CDN**(R2/S3 등)으로 충분하다. GPU 인스턴스가 아니다
+- 가중치 재배포 권리가 필요하므로 **License를 반드시 확인한다**
+  (Qwen 계열 Apache 2.0, bge-m3 MIT, PIXIE 미확인 --- §11.5)
+- 첫 실행 경험이 "수 GB 다운로드를 기다리세요"가 되지 않도록,
+  Apple Foundation Models 기반 기본 경험을 먼저 제공한다(§11.9)
 
 ### 19.5 Update and Payment
 
 App Store가 대신해주던 기능을 직접 구성해야 한다.
 
-| 항목 | 방식 |
-|---|---|
-| 자동 업데이트 | Sparkle (appcast에 EdDSA 서명) |
-| 결제 | Merchant of Record (Paddle / Lemon Squeezy 등) |
-| 라이선스 검증 | 오프라인 검증 서명 파일 (§18) |
-| 배포 호스팅 | 정적 CDN (§19.4와 공용) |
+| 항목          | 방식                                           |
+| ------------- | ---------------------------------------------- |
+| 자동 업데이트 | Sparkle (appcast에 EdDSA 서명)                 |
+| 결제          | Merchant of Record (Paddle / Lemon Squeezy 등) |
+| 라이선스 검증 | 오프라인 검증 서명 파일 (§18)                  |
+| 배포 호스팅   | 정적 CDN (§19.4와 공용)                        |
 
 결제에 Merchant of Record를 권하는 이유는 EU VAT 및 미국 각 주
 sales tax 처리를 대행하기 때문이다. Apple은 App Store 외부 거래에
@@ -1388,13 +1390,13 @@ sales tax 처리를 대행하기 때문이다. Apple은 App Store 외부 거래�
 
 Sandbox를 쓰지 않으므로 데이터 경로를 직접 정한다.
 
--   저장 위치: `~/Library/Application Support/<app>/`
--   **경로 결정을 코드 전체에 흩뿌리지 않고 한 곳에서 관리한다**
+- 저장 위치: `~/Library/Application Support/<app>/`
+- **경로 결정을 코드 전체에 흩뿌리지 않고 한 곳에서 관리한다**
 
 이유는 Sandbox 전환 대비가 아니라, 전체 데이터 삭제(§22 Privacy), 백업,
 재색인(§9.5) 기능이 모두 이 추상화를 필요로 하기 때문이다.
 
-------------------------------------------------------------------------
+---
 
 ## 20. Error and Processing States
 
@@ -1402,7 +1404,7 @@ AI 처리는 비동기적으로 이루어질 수 있다.
 
 Source 상태 예:
 
-``` text
+```text
 captured
 processing
 ready
@@ -1414,14 +1416,14 @@ Capture 자체는 빠르게 완료하고 AI 분석 때문에 사용자가 기다
 
 예:
 
-``` text
+```text
 ✓ Remembered
 Analyzing locally...
 ```
 
 분석 실패 시 원본 Source는 유지하고 재처리가 가능해야 한다.
 
-------------------------------------------------------------------------
+---
 
 ## 21. Performance Goals
 
@@ -1429,150 +1431,150 @@ Analyzing locally...
 
 ### Capture
 
--   Shortcut 입력 후 Popup이 즉각적으로 느껴질 것
--   Source 저장이 AI 처리 완료를 기다리지 않을 것
+- Shortcut 입력 후 Popup이 즉각적으로 느껴질 것
+- Source 저장이 AI 처리 완료를 기다리지 않을 것
 
 ### AI
 
--   Background processing
--   Mac 사용을 심각하게 방해하지 않을 것
--   역할별 모델 메모리 사용량 측정 (§11.1)
--   배터리/CPU/GPU/ANE 사용량 측정
--   **Capture Path 상주 메모리 목표: 약 1GB 이하** (§11.10)
--   대형 Generation 모델을 상시 상주시키지 않을 것
+- Background processing
+- Mac 사용을 심각하게 방해하지 않을 것
+- 역할별 모델 메모리 사용량 측정 (§11.1)
+- 배터리/CPU/GPU/ANE 사용량 측정
+- **Capture Path 상주 메모리 목표: 약 1GB 이하** (§11.10)
+- 대형 Generation 모델을 상시 상주시키지 않을 것
 
 ### Search
 
--   일반적인 Memory 규모에서 검색 결과가 빠르게 표시될 것
--   Answer 생성 전 관련 Source 결과를 먼저 표시한다 (§12.1
-    Progressive rendering) --- Recall Path 모델 로딩 지연을 가리는 역할도
-    한다
+- 일반적인 Memory 규모에서 검색 결과가 빠르게 표시될 것
+- Answer 생성 전 관련 Source 결과를 먼저 표시한다 (§12.1
+  Progressive rendering) --- Recall Path 모델 로딩 지연을 가리는 역할도
+  한다
 
-------------------------------------------------------------------------
+---
 
 ## 22. MVP Functional Requirements
 
 ### Capture
 
--   [ ] Global Shortcut 동작
--   [ ] Selected Text 감지
--   [ ] Selected Text 저장
--   [ ] Selection 없을 때 Screenshot
--   [ ] Screenshot Preview
--   [ ] Apple Vision OCR
--   [ ] Capture Popup
--   [ ] User Note
--   [ ] Quick Note
--   [ ] Voice Memo
--   [ ] File Drag & Drop
--   [ ] File Picker
+- [ ] Global Shortcut 동작
+- [ ] Selected Text 감지
+- [ ] Selected Text 저장
+- [ ] Selection 없을 때 Screenshot
+- [ ] Screenshot Preview
+- [ ] Apple Vision OCR
+- [ ] Capture Popup
+- [ ] User Note
+- [ ] Quick Note
+- [ ] Voice Memo
+- [ ] File Drag & Drop
+- [ ] File Picker
 
 ### Shortcut
 
--   [ ] Remember Current Context Shortcut
--   [ ] Quick Memory Shortcut
--   [ ] Shortcut 변경
--   [ ] Shortcut 충돌 처리
--   [ ] 설정 영구 저장
--   [ ] Restore Defaults
+- [ ] Remember Current Context Shortcut
+- [ ] Quick Memory Shortcut
+- [ ] Shortcut 변경
+- [ ] Shortcut 충돌 처리
+- [ ] 설정 영구 저장
+- [ ] Restore Defaults
 
 ### AI
 
--   [ ] Local LLM 실행 (Apple Foundation Models 또는 MLX Swift)
--   [ ] Generation 백엔드 교체 가능 구조 (§11.3)
--   [ ] Summary 생성
--   [ ] Topics 생성 (구조화 출력 보장)
--   [ ] Analysis 거부/실패 시 폴백 경로 (§11.7.1)
--   [ ] Local Embedding 생성
--   [ ] Reranker 적용
--   [ ] Hardware Tier 자동 감지 및 모델 선택 (§11.9)
--   [ ] Model Residency 정책 (온디맨드 로드/해제, §11.10)
--   [ ] Background processing
--   [ ] Failed job retry
+- [ ] Local LLM 실행 (Apple Foundation Models 또는 MLX Swift)
+- [ ] Generation 백엔드 교체 가능 구조 (§11.3)
+- [ ] Summary 생성
+- [ ] Topics 생성 (구조화 출력 보장)
+- [ ] Analysis 거부/실패 시 폴백 경로 (§11.7.1)
+- [ ] Local Embedding 생성
+- [ ] Reranker 적용
+- [ ] Hardware Tier 자동 감지 및 모델 선택 (§11.9)
+- [ ] Model Residency 정책 (온디맨드 로드/해제, §11.10)
+- [ ] Background processing
+- [ ] Failed job retry
 
 ### Storage
 
--   [ ] SQLite
--   [ ] Screenshot 저장
--   [ ] File 저장
--   [ ] Voice 저장
--   [ ] Source metadata
--   [ ] Chunk 저장
--   [ ] Embedding 저장 (모델명 + 버전 포함, §9.4)
--   [ ] Source 삭제 cascade
--   [ ] 데이터 경로 단일 추상화 (§19.6)
--   [ ] 재색인 작업 (재개 가능 + 진행률 표시, §9.5)
+- [ ] SQLite
+- [ ] Screenshot 저장
+- [ ] File 저장
+- [ ] Voice 저장
+- [ ] Source metadata
+- [ ] Chunk 저장
+- [ ] Embedding 저장 (모델명 + 버전 포함, §9.4)
+- [ ] Source 삭제 cascade
+- [ ] 데이터 경로 단일 추상화 (§19.6)
+- [ ] 재색인 작업 (재개 가능 + 진행률 표시, §9.5)
 
 ### Recall
 
--   [ ] 자연어 질문
--   [ ] Vector Search (Top-N 회수)
--   [ ] Reranker 재정렬 (Top-K)
--   [ ] Source 목록 우선 표시 (Progressive rendering)
--   [ ] 근거 기반 Answer 생성
--   [ ] 근거 부족 시 거절 처리 (§12.2)
--   [ ] Source 표시
--   [ ] Source Detail
--   [ ] URL reopen
+- [ ] 자연어 질문
+- [ ] Vector Search (Top-N 회수)
+- [ ] Reranker 재정렬 (Top-K)
+- [ ] Source 목록 우선 표시 (Progressive rendering)
+- [ ] 근거 기반 Answer 생성
+- [ ] 근거 부족 시 거절 처리 (§12.2)
+- [ ] Source 표시
+- [ ] Source Detail
+- [ ] URL reopen
 
 ### Privacy
 
--   [ ] Local processing 기본
--   [ ] Permission 기능별 지연 요청 (§18)
--   [ ] Permission 거부 시 부분 동작
--   [ ] Source 삭제
--   [ ] 전체 데이터 삭제 기능
+- [ ] Local processing 기본
+- [ ] Permission 기능별 지연 요청 (§18)
+- [ ] Permission 거부 시 부분 동작
+- [ ] Source 삭제
+- [ ] 전체 데이터 삭제 기능
 
 ### Distribution (MVP 이후 배포 시)
 
--   [ ] Developer ID 서명 + Hardened Runtime + MLX entitlements
--   [ ] Notarization + Stapling
--   [ ] 모델 다운로드 (CDN, 재개 가능)
--   [ ] Sparkle 자동 업데이트
--   [ ] 오프라인 라이선스 검증
+- [ ] Developer ID 서명 + Hardened Runtime + MLX entitlements
+- [ ] Notarization + Stapling
+- [ ] 모델 다운로드 (CDN, 재개 가능)
+- [ ] Sparkle 자동 업데이트
+- [ ] 오프라인 라이선스 검증
 
-------------------------------------------------------------------------
+---
 
 ## 23. Explicitly Out of Scope
 
 MVP에서는 다음을 구현하지 않는다.
 
--   VLM
--   화면 상시 감시
--   화면 24시간 녹화
--   Automatic Context Capture
--   장시간 Meeting Recording
--   Speaker Diarization
--   iPhone
--   Apple Watch
--   Android
--   Windows
--   Multi-device Sync
--   Cloud Sync
--   MCP
--   Cursor integration
--   Claude Code integration
--   Codex integration
--   Calendar 자동 등록
--   Todo 자동 등록
--   Slack API
--   Gmail API
--   KakaoTalk integration
--   Instagram integration
--   Notion integration
--   GitHub API integration
--   Jira integration
--   Cloud LLM
--   OpenAI API
--   Anthropic API
--   Knowledge Graph
--   Person Graph
--   Project Graph
--   자동 Decision tracking
--   자동 Promise tracking
--   자동 Task management
+- VLM
+- 화면 상시 감시
+- 화면 24시간 녹화
+- Automatic Context Capture
+- 장시간 Meeting Recording
+- Speaker Diarization
+- iPhone
+- Apple Watch
+- Android
+- Windows
+- Multi-device Sync
+- Cloud Sync
+- MCP
+- Cursor integration
+- Claude Code integration
+- Codex integration
+- Calendar 자동 등록
+- Todo 자동 등록
+- Slack API
+- Gmail API
+- KakaoTalk integration
+- Instagram integration
+- Notion integration
+- GitHub API integration
+- Jira integration
+- Cloud LLM
+- OpenAI API
+- Anthropic API
+- Knowledge Graph
+- Person Graph
+- Project Graph
+- 자동 Decision tracking
+- 자동 Promise tracking
+- 자동 Task management
 
-------------------------------------------------------------------------
+---
 
 ## 24. MVP Success Metrics
 
@@ -1588,18 +1590,18 @@ MVP의 성공은 기능 개수가 아니라 Capture → Recall loop가 실제로
 
 ### Suggested metrics
 
--   Daily Captures per Active User
--   Capture → Save conversion
--   User Note usage rate
--   Search queries per user
--   Searches with Source open
--   Successful Recall rate
--   Time from Capture to Recall
--   Repeat usage after 7/14 days
+- Daily Captures per Active User
+- Capture → Save conversion
+- User Note usage rate
+- Search queries per user
+- Searches with Source open
+- Successful Recall rate
+- Time from Capture to Recall
+- Repeat usage after 7/14 days
 
 초기 개인 테스트에서는 특히 다음을 기록한다.
 
-``` text
+```text
 하루에 몇 번 자연스럽게 Capture하는가?
 ↓
 며칠 뒤 실제로 질문하는가?
@@ -1609,7 +1611,7 @@ MVP의 성공은 기능 개수가 아니라 Capture → Recall loop가 실제로
 그 Source가 실제로 도움이 되었는가?
 ```
 
-------------------------------------------------------------------------
+---
 
 ## 25. Recommended Development Order
 
@@ -1627,10 +1629,10 @@ Embedding 선택은 되돌리기 어렵기 때문에(§9.5) 코드 작성 전에
 검색 품질과 관련된 모든 실험. `sentence-transformers` 등을 사용한다.
 
 1.  자체 평가셋 구축
-    -   실제 캡처 30\~50개 (웹 텍스트 / Screenshot OCR / 한국어 메모 /
-        PDF 조각 혼합)
-    -   "며칠 뒤 이렇게 물어볼 것 같다" 형태의 질문 20\~30개
-    -   각 질문에 정답 Source 라벨링
+    - 실제 캡처 30\~50개 (웹 텍스트 / Screenshot OCR / 한국어 메모 /
+      PDF 조각 혼합)
+    - "며칠 뒤 이렇게 물어볼 것 같다" 형태의 질문 20\~30개
+    - 각 질문에 정답 Source 라벨링
 2.  **Embedding 후보 비교 (§11.5) --- 3개 게이트 전부 통과 확인**
 3.  Reranker 유무 효과 측정 (§11.6)
 4.  Searchable Text 필드 가중치 실험 (§10, 특히 User Note)
@@ -1675,10 +1677,10 @@ Terminal / PDF 뷰어로 조기에 실측한다. 이것이 `⌥ Space` 경로의
 스크립트**(`phase0/`)로 뽑는다. 앱에 내보내기 기능을 넣지 않는 이유는 두
 가지다.
 
--   사용자 내용을 평문으로 앱 보호 영역 밖에 쓰는 기능은 §18과 충돌한다.
-    실수로 출하되면 미정리가 아니라 사고다
--   "배포 전에 지운다"는 코드는 안 지워지거나, 지우면서 다른 것을 깨뜨린다.
-    지울 것을 만들지 않는 편이 안전하다
+- 사용자 내용을 평문으로 앱 보호 영역 밖에 쓰는 기능은 §18과 충돌한다.
+  실수로 출하되면 미정리가 아니라 사고다
+- "배포 전에 지운다"는 코드는 안 지워지거나, 지우면서 다른 것을 깨뜨린다.
+  지울 것을 만들지 않는 편이 안전하다
 
 Phase 1에서 필요한 것은 기능이 아니라 **DB 경로와 스키마를 문서화하는
 것**이다(§19.6 경로 추상화에 이미 포함). 외부에서 읽을 수 있으면 충분하다.
@@ -1764,18 +1766,18 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행한다.
 릴리스 점검은 특정 기능을 되돌리는 작업이 아니다. 되돌릴 것을 만들지 않는
 것이 원칙이고(Phase 1), 이 점검은 그 원칙이 지켜졌는지 확인하는 게이트다.
 
--   `#if DEBUG` 경로가 릴리스 빌드에 포함되지 않았는지
--   사용자 내용을 앱 보호 영역 밖으로 쓰는 코드 경로가 없는지 (§18)
--   테스트·평가용 파일 경로가 번들에 남아 있지 않은지
--   서명된 빌드에서 첫 추론이 죽지 않는지 (§19.3 entitlements)
+- `#if DEBUG` 경로가 릴리스 빌드에 포함되지 않았는지
+- 사용자 내용을 앱 보호 영역 밖으로 쓰는 코드 경로가 없는지 (§18)
+- 테스트·평가용 파일 경로가 번들에 남아 있지 않은지
+- 서명된 빌드에서 첫 추론이 죽지 않는지 (§19.3 entitlements)
 
-------------------------------------------------------------------------
+---
 
 ## 26. Post-MVP Direction
 
 MVP 검증 이후에만 확장한다.
 
-``` text
+```text
 MVP
 Capture + Recall
       ↓
@@ -1809,13 +1811,13 @@ Mobile / Real-world Context
 사용자가 자신의 Memory를 소유하고 필요한 AI/Agent에게 필요한 범위의
 Context를 제공하는 구조를 지향한다.
 
-------------------------------------------------------------------------
+---
 
 ## 27. Final MVP Definition
 
 ### User inputs
 
-``` text
+```text
 1. Remember Current Context
    ├── Selected Text
    └── Screenshot + OCR
@@ -1829,7 +1831,7 @@ Context를 제공하는 구조를 지향한다.
 
 ### AI
 
-``` text
+```text
 Apple Vision
 → OCR
 
@@ -1848,7 +1850,7 @@ STT
 
 ### Storage
 
-``` text
+```text
 SQLite
 +
 Local File System
@@ -1856,7 +1858,7 @@ Local File System
 
 ### Platform
 
-``` text
+```text
 macOS 26+ / Apple Silicon
 App Sandbox: OFF
 배포: Developer ID + Notarization, 홈페이지 직접 다운로드
@@ -1865,7 +1867,7 @@ App Sandbox: OFF
 
 ### Output
 
-``` text
+```text
 Natural Language Question
         ↓
 Vector Search (Top-N)
@@ -1886,7 +1888,7 @@ Original Sources
 
 ### MVP product loop
 
-``` text
+```text
 발견
  ↓
 "나중에 필요하겠다"
@@ -1908,7 +1910,7 @@ Answer + Original Source
 
 이 Loop를 빠르고 정확하며 Local-first로 만드는 것이 MVP의 전부다.
 
-------------------------------------------------------------------------
+---
 
 ## 28. Decision Log
 
@@ -1917,7 +1919,7 @@ Rev. 2 기준. 확정 사항과 미결 사항을 분리해 기록한다. 새로�
 
 ### 28.1 개발 환경 (기준 기기)
 
-``` text
+```text
 MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 ```
 
@@ -1925,57 +1927,57 @@ MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 
 ### 28.2 확정 사항
 
-| # | 결정 | 근거 |
-|---|---|---|
-| D1 | Mac App Store 미사용 | §19.2 --- 독립적 이유 2개 |
-| D2 | 홈페이지 직접 배포 (Developer ID + 공증) | §19.3 |
-| D3 | App Sandbox OFF | §19.1 |
-| D4 | 추론 서버 없음, Cloud는 정적 CDN만 | §2.2, §19.4 |
-| D5 | 출하 코드는 Swift 네이티브, Python 번들 금지 | §11.3 |
-| D6 | 단일 모델 → 5개 Model Role 분리 | §11.1 |
-| D7 | Retrieval에 Reranker 단계 추가 | §11.6 |
-| D8 | Embedding은 전 티어 동일, 교체 시 전체 재색인 | §9.5, §11.9 |
-| D9 | Capture Path / Recall Path 모델 상주 분리 | §11.10 |
-| D10 | 모델 가중치는 번들 제외, 설치 후 다운로드 | §19.4 |
-| D11 | 라이선스 검증은 오프라인 완결 | §18 |
-| D12 | Model selection을 Phase 0으로 선행 | §25 |
-| D13 | Deployment Target은 macOS 26 유지 | §11.3 --- 27 요구 시 기기 축소 |
-| D14 | Generation 백엔드는 자체 `TextGenerator` 프로토콜 | §11.3 --- Apple 통합 API는 27 SDK 필요 |
-| D15 | MLX는 MVP 필수 아님, Phase 3.5로 조건부 연기 | §11.9, §25 |
-| D16 | Embedding 후보 License 전수 확보 (2026-08-25) | §11.5 --- PIXIE 계열 포함 전부 Apache 2.0/MIT |
-| D17 | 게이트 3에서 인코더 계열 우선 | §11.5 --- 디코더는 ANE 불가, Capture 경로 배터리 |
-| D18 | 인코더 후보 4종 Core ML 변환 검증 완료 | §28.3.2 --- 전부 통과, 일치 0.9998 이상 |
-| D19 | 평가셋 적재는 앱 기능 아님, 외부 스크립트가 DB를 읽음 | §25 Phase 1 --- §18 충돌 회피, 원복 대상 미생성 |
-| D20 | 도그푸딩 도구는 `#if DEBUG`, 릴리스 점검은 CI 게이트 | §25 Phase 1·6 --- 기억에 의존하지 않음 |
-| D25 | Embedding 모델: BAAI/bge-m3 (MIT, fp16, 1081MB) | §11.5 --- no-note 강건성 최고, 프롬프트 불필요, Phase 5 재검증 예정 |
-| D26 | Searchable Text 조합: User Note + Summary + Content + Context | §10 --- embedding_version v1 기준. 변경 시 재색인 필요 |
+| #   | 결정                                                          | 근거                                                                |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| D1  | Mac App Store 미사용                                          | §19.2 --- 독립적 이유 2개                                           |
+| D2  | 홈페이지 직접 배포 (Developer ID + 공증)                      | §19.3                                                               |
+| D3  | App Sandbox OFF                                               | §19.1                                                               |
+| D4  | 추론 서버 없음, Cloud는 정적 CDN만                            | §2.2, §19.4                                                         |
+| D5  | 출하 코드는 Swift 네이티브, Python 번들 금지                  | §11.3                                                               |
+| D6  | 단일 모델 → 5개 Model Role 분리                               | §11.1                                                               |
+| D7  | Retrieval에 Reranker 단계 추가                                | §11.6                                                               |
+| D8  | Embedding은 전 티어 동일, 교체 시 전체 재색인                 | §9.5, §11.9                                                         |
+| D9  | Capture Path / Recall Path 모델 상주 분리                     | §11.10                                                              |
+| D10 | 모델 가중치는 번들 제외, 설치 후 다운로드                     | §19.4                                                               |
+| D11 | 라이선스 검증은 오프라인 완결                                 | §18                                                                 |
+| D12 | Model selection을 Phase 0으로 선행                            | §25                                                                 |
+| D13 | Deployment Target은 macOS 26 유지                             | §11.3 --- 27 요구 시 기기 축소                                      |
+| D14 | Generation 백엔드는 자체 `TextGenerator` 프로토콜             | §11.3 --- Apple 통합 API는 27 SDK 필요                              |
+| D15 | MLX는 MVP 필수 아님, Phase 3.5로 조건부 연기                  | §11.9, §25                                                          |
+| D16 | Embedding 후보 License 전수 확보 (2026-08-25)                 | §11.5 --- PIXIE 계열 포함 전부 Apache 2.0/MIT                       |
+| D17 | 게이트 3에서 인코더 계열 우선                                 | §11.5 --- 디코더는 ANE 불가, Capture 경로 배터리                    |
+| D18 | 인코더 후보 4종 Core ML 변환 검증 완료                        | §28.3.2 --- 전부 통과, 일치 0.9998 이상                             |
+| D19 | 평가셋 적재는 앱 기능 아님, 외부 스크립트가 DB를 읽음         | §25 Phase 1 --- §18 충돌 회피, 원복 대상 미생성                     |
+| D20 | 도그푸딩 도구는 `#if DEBUG`, 릴리스 점검은 CI 게이트          | §25 Phase 1·6 --- 기억에 의존하지 않음                              |
+| D25 | Embedding 모델: BAAI/bge-m3 (MIT, fp16, 1081MB)               | §11.5 --- no-note 강건성 최고, 프롬프트 불필요, Phase 5 재검증 예정 |
+| D26 | Searchable Text 조합: User Note + Summary + Content + Context | §10 --- embedding_version v1 기준. 변경 시 재색인 필요              |
 
 **후보에서 제외된 것**
 
-| 제외 대상 | 이유 |
-|---|---|
-| Parakeet (STT) | 한국어 미지원 (유럽 25개 언어 전용) |
+| 제외 대상            | 이유                                        |
+| -------------------- | ------------------------------------------- |
+| Parakeet (STT)       | 한국어 미지원 (유럽 25개 언어 전용)         |
 | Qwen3-Embedding-0.6B | 한국어 리트리벌에서 bge-m3보다 낮음 (§11.5) |
-| Python 런타임 번들 | 코드사이닝·공증 비용 (§11.3, §19.3) |
-| VLM | MVP 범위 외 (§11.11) |
+| Python 런타임 번들   | 코드사이닝·공증 비용 (§11.3, §19.3)         |
+| VLM                  | MVP 범위 외 (§11.11)                        |
 
 ### 28.3 미결 사항
 
-| # | 미결 항목 | 결정 시점 | 차단 요인 |
-|---|---|---|---|
-| O1 | ~~Embedding 모델 확정~~ **해소** | Phase 0 | **BAAI/bge-m3 (MIT, XLM-R 568M, Core ML fp16) 확정 (2026-08-26).** 게이트 2·3 통과, no-note 성적 1위(0.923), MIT 최관대, 프롬프트 접두어 불필요. Phase 5에서 실데이터 재검증 |
-| O13 | ~~Searchable Text 필드 조합 확정~~ **해소** | Phase 0 | **`[User Note] + [Summary] + [Content/OCR/Transcript] + [Context]` 확정 (2026-08-26).** User Note가 가장 강한 검색 신호(§28.3.1). Context 제거 시 영향 미미하나 포함 비용 없음 |
-| O14 | Embedding int8 양자화 채택 여부 | Phase 5 | 일치 0.986 --- fp16(1081MB) 우선 사용. Phase 5 실데이터로 품질 열화 여부 확인 후 결정 |
-| O15 | ANE 실제 활용 여부 | Phase 5 | Core ML 지연 격차 1.35배로 불확실 |
-| O4 | ~~Analysis에 Apple Foundation Models 사용 여부~~ **해소** | Phase 2 | Apple FM 사용 확정. 가드레일 거부 시 failed 마킹 (max 3회 재시도). Phase 2에서 구현 완료 |
-| O5 | STT 모델 (Whisper turbo vs Qwen3-ASR) | Phase 4 | 한영 코드 스위칭 실측 필요 |
-| O6 | Answer 모델 최종 티어 구성 | Phase 3 | 실사용 품질 확인 후 |
-| O11 | MLX 도입 여부 | Phase 3 종료 | Apple FM Answer 품질 실측 결과 |
-| O12 | macOS 27 이후 Apple 통합 추상화로 이전할지 | 27 정식 출시 후 | 이전 필수 아님 |
-| O7 | Top-N / Top-K 값, Chunking 파라미터 | Phase 3 | 실사용 조정 |
-| O8 | ~~기본 단축키 충돌 검증~~ **해소** | Phase 1 | `⌥ Space`는 한국어 입력 소스 전환과 충돌. 사용자가 시스템 설정에서 입력 소스 단축키를 해제하거나, Settings에서 다른 키로 변경 가능. 기본값 유지 결정 |
-| O9 | 결제 머천트 및 라이선스 시스템 | Phase 6 | MVP 검증 이후 |
-| O10 | 국내 사업자등록·부가세 처리 | Phase 6 | 세무 확인 필요 (제품 결정 아님) |
+| #   | 미결 항목                                                 | 결정 시점       | 차단 요인                                                                                                                                                                      |
+| --- | --------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| O1  | ~~Embedding 모델 확정~~ **해소**                          | Phase 0         | **BAAI/bge-m3 (MIT, XLM-R 568M, Core ML fp16) 확정 (2026-08-26).** 게이트 2·3 통과, no-note 성적 1위(0.923), MIT 최관대, 프롬프트 접두어 불필요. Phase 5에서 실데이터 재검증   |
+| O13 | ~~Searchable Text 필드 조합 확정~~ **해소**               | Phase 0         | **`[User Note] + [Summary] + [Content/OCR/Transcript] + [Context]` 확정 (2026-08-26).** User Note가 가장 강한 검색 신호(§28.3.1). Context 제거 시 영향 미미하나 포함 비용 없음 |
+| O14 | Embedding int8 양자화 채택 여부                           | Phase 5         | 일치 0.986 --- fp16(1081MB) 우선 사용. Phase 5 실데이터로 품질 열화 여부 확인 후 결정                                                                                          |
+| O15 | ANE 실제 활용 여부                                        | Phase 5         | Core ML 지연 격차 1.35배로 불확실                                                                                                                                              |
+| O4  | ~~Analysis에 Apple Foundation Models 사용 여부~~ **해소** | Phase 2         | Apple FM 사용 확정. 가드레일 거부 시 failed 마킹 (max 3회 재시도). Phase 2에서 구현 완료                                                                                       |
+| O5  | STT 모델 (Whisper turbo vs Qwen3-ASR)                     | Phase 4         | 한영 코드 스위칭 실측 필요                                                                                                                                                     |
+| O6  | Answer 모델 최종 티어 구성                                | Phase 3         | 실사용 품질 확인 후                                                                                                                                                            |
+| O11 | MLX 도입 여부                                             | Phase 3 종료    | Apple FM Answer 품질 실측 결과                                                                                                                                                 |
+| O12 | macOS 27 이후 Apple 통합 추상화로 이전할지                | 27 정식 출시 후 | 이전 필수 아님                                                                                                                                                                 |
+| O7  | Top-N / Top-K 값, Chunking 파라미터                       | Phase 3         | 실사용 조정                                                                                                                                                                    |
+| O8  | ~~기본 단축키 충돌 검증~~ **해소**                        | Phase 1         | `⌥ Space`는 한국어 입력 소스 전환과 충돌. 사용자가 시스템 설정에서 입력 소스 단축키를 해제하거나, Settings에서 다른 키로 변경 가능. 기본값 유지 결정                           |
+| O9  | 결제 머천트 및 라이선스 시스템                            | Phase 6         | MVP 검증 이후                                                                                                                                                                  |
+| O10 | 국내 사업자등록·부가세 처리                               | Phase 6         | 세무 확인 필요 (제품 결정 아님)                                                                                                                                                |
 
 **O1 해소로 Phase 3 진입이 가능해졌다.** 남은 미결 항목은 모두 해당 Phase에서 결정 가능.
 
@@ -1992,13 +1994,13 @@ Phase 1에서 구현한 Selected Text 감지 접근 방식과 실측 대기 상�
 3.  **Window Title** --- AX API `kAXFocusedWindowAttribute` → `kAXTitleAttribute`
 4.  **URL 수집** --- Chrome/Safari/Arc/Brave AppleScript
 
-| 앱 | AX API | 클립보드 폴백 | Window Title | URL | 비고 |
-|---|---|---|---|---|---|
-| Chrome | 성공 | 미사용 | 성공 | AppleScript 성공 | AX만으로 충분 |
-| Slack | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
-| Cursor | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
-| Terminal | 실패 | 성공 | 성공 | N/A | AX 미지원, 폴백 동작 |
-| Preview (PDF) | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
+| 앱            | AX API | 클립보드 폴백 | Window Title | URL              | 비고                 |
+| ------------- | ------ | ------------- | ------------ | ---------------- | -------------------- |
+| Chrome        | 성공   | 미사용        | 성공         | AppleScript 성공 | AX만으로 충분        |
+| Slack         | 성공   | 미사용        | 성공         | N/A              | AX만으로 충분        |
+| Cursor        | 성공   | 미사용        | 성공         | N/A              | AX만으로 충분        |
+| Terminal      | 실패   | 성공          | 성공         | N/A              | AX 미지원, 폴백 동작 |
+| Preview (PDF) | 성공   | 미사용        | 성공         | N/A              | AX만으로 충분        |
 
 **실측 결과 (2026-08-26):** Terminal을 제외한 모든 주요 앱에서 AX API 1차
 감지가 동작한다. Terminal은 클립보드 폴백으로 정상 캡처됨. 기술 리스크 해소.
@@ -2007,15 +2009,15 @@ Phase 1에서 구현한 Selected Text 감지 접근 방식과 실측 대기 상�
 
 PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 
-| 결정 | 내용 | 근거 |
-|------|------|------|
-| D21 | Screenshot 컨텍스트는 마우스 커서 아래 윈도우 기준 | 듀얼모니터에서 frontmostApp과 실제 보는 화면이 다를 수 있음. `SCShareableContent.windows`의 z-order + `CGRect.contains(mousePoint)`로 해결 |
-| D22 | Screenshot 대상 디스플레이는 마우스 커서 위치 기준 | 메인 모니터 고정이 아닌 사용자가 보고 있는 화면 캡처 |
-| D23 | Capture Popup은 마우스가 있는 모니터에 표시 | 캡처한 화면과 같은 모니터에 결과를 보여줌 |
-| D24 | AppDelegate 패턴으로 CaptureCoordinator 유지 | SwiftUI App struct의 `@State`는 body에서 미참조 시 생명주기 불안정. `NSApplicationDelegateAdaptor`가 확실함 |
-| D27 | Reranker(Phase 3.2) 미적용, brute-force vector search | MVP 규모(수천 벡터)에서 <50ms. 품질 실측 후 조건부 추가 |
-| D28 | RAG Answer에 Apple FM 사용 (Phase 3.4) | Context 8192 토큰 내에서 충분. MLX fallback은 Phase 3.5에서 조건부 |
-| D29 | 메인 창 SwiftUI Window scene + @Observable AppState | ObservableObject의 `@available` 프로퍼티 제약으로 @Observable 채택 |
+| 결정 | 내용                                                  | 근거                                                                                                                                       |
+| ---- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| D21  | Screenshot 컨텍스트는 마우스 커서 아래 윈도우 기준    | 듀얼모니터에서 frontmostApp과 실제 보는 화면이 다를 수 있음. `SCShareableContent.windows`의 z-order + `CGRect.contains(mousePoint)`로 해결 |
+| D22  | Screenshot 대상 디스플레이는 마우스 커서 위치 기준    | 메인 모니터 고정이 아닌 사용자가 보고 있는 화면 캡처                                                                                       |
+| D23  | Capture Popup은 마우스가 있는 모니터에 표시           | 캡처한 화면과 같은 모니터에 결과를 보여줌                                                                                                  |
+| D24  | AppDelegate 패턴으로 CaptureCoordinator 유지          | SwiftUI App struct의 `@State`는 body에서 미참조 시 생명주기 불안정. `NSApplicationDelegateAdaptor`가 확실함                                |
+| D27  | Reranker(Phase 3.2) 미적용, brute-force vector search | MVP 규모(수천 벡터)에서 <50ms. 품질 실측 후 조건부 추가                                                                                    |
+| D28  | RAG Answer에 Apple FM 사용 (Phase 3.4)                | Context 8192 토큰 내에서 충분. MLX fallback은 Phase 3.5에서 조건부                                                                         |
+| D29  | 메인 창 SwiftUI Window scene + @Observable AppState   | ObservableObject의 `@available` 프로퍼티 제약으로 @Observable 채택                                                                         |
 
 ### 28.3.1 Phase 0 진행 현황
 
@@ -2023,23 +2025,23 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 `phase0/README.md` 참조. **평가셋이 아직 시드 수준이라 결정은 내리지
 않았다.**
 
-| 항목 | 상태 |
-|---|---|
-| 평가 하니스 (hit@k, recall@k, NDCG, MRR) | 완료, 검증됨 |
-| 통계적 유의성 (부트스트랩 신뢰구간 + 짝지은 비교) | 완료 |
-| BM25 기준선 (한글 문자 바이그램) | 완료 |
-| 평가셋 품질 검사 (어휘 중복) | 완료 |
-| 평가셋 수집 도구 | 완료 |
-| Searchable Text 조합 실험 (6종) | 완료 |
-| Reranker 단계 (Qwen3-Reranker-0.6B) | 완료, 검증됨 |
-| 후보 License 전수 확인 | 완료 --- 6종 전부 통과 (D16) |
-| **관문 3 Core ML 변환** | 완료 --- 인코더 4종 전부 통과 (D18) |
-| 평가셋 | **문서 12건 / 질문 13건 --- 부족** |
+| 항목                                              | 상태                                |
+| ------------------------------------------------- | ----------------------------------- |
+| 평가 하니스 (hit@k, recall@k, NDCG, MRR)          | 완료, 검증됨                        |
+| 통계적 유의성 (부트스트랩 신뢰구간 + 짝지은 비교) | 완료                                |
+| BM25 기준선 (한글 문자 바이그램)                  | 완료                                |
+| 평가셋 품질 검사 (어휘 중복)                      | 완료                                |
+| 평가셋 수집 도구                                  | 완료                                |
+| Searchable Text 조합 실험 (6종)                   | 완료                                |
+| Reranker 단계 (Qwen3-Reranker-0.6B)               | 완료, 검증됨                        |
+| 후보 License 전수 확인                            | 완료 --- 6종 전부 통과 (D16)        |
+| **관문 3 Core ML 변환**                           | 완료 --- 인코더 4종 전부 통과 (D18) |
+| 평가셋                                            | **문서 12건 / 질문 13건 --- 부족**  |
 
 후보 6종 전수 측정값(2026-08-25, 시드 평가셋). **의사결정 근거로 쓸 수
 없다.** 도구가 동작함을 확인한 값으로만 취급한다.
 
-``` text
+```text
 model             composition    hit@1   hit@5   ndcg@10    mrr
 arctic-l-v2       all            1.000   1.000     0.988   1.000
 bge-m3-ko         all            1.000   1.000     0.986   1.000
@@ -2060,7 +2062,7 @@ pixie-spell       all            0.846   1.000     0.939   0.923
 **통계적으로 확인한 결론.** 부트스트랩 10,000회, 95% 신뢰구간, 질문 단위
 짝지은 비교다(`src/significance.py`).
 
-``` text
+```text
 비교                          차이      95% CI              판정
 bge-m3-ko vs bge-m3        +0.003  [+0.000, +0.008]   구분 불가
 bge-m3-ko vs pixie-rune    +0.027  [-0.005, +0.085]   구분 불가
@@ -2084,7 +2086,7 @@ BM25가 부당하게 약해지므로 문자 바이그램을 쓴다. 어절 단�
 `no-note` 조합에서만 후보 간 차이가 드러났다. 실제 신호가 있는 유일한
 관찰이며, 평가셋을 늘린 뒤 재확인한다.
 
-``` text
+```text
 model             no-note hit@1   all 대비
 bge-m3                    0.923    -0.077
 bge-m3-ko                 0.846    -0.154
@@ -2113,7 +2115,7 @@ Recall 첫 응답 3초 목표를 초과한다. Swift/MLX 구현은 이보다 빠
 `src/coreml_check.py`로 실측했다(coremltools 9.0, macOS 26.5.2, M4 Pro,
 seq_len 512 고정, fp16, mlprogram).
 
-``` text
+```text
 후보              아키텍처          크기     ALL     CPU only   PyTorch 일치
 pixie-rune      XLM-R 568M      1081MB   63.8ms    82.7ms      0.99996
 bge-m3-ko       XLM-R 568M      1081MB   61.4ms    82.3ms      0.99992
@@ -2132,7 +2134,7 @@ bge-m3          XLM-R 568M      1081MB   61.0ms    82.3ms      0.99981
 품질 문제다(§19.4). 가중치의 약 47%가 vocab 250K 임베딩 테이블
 (250,002 × 1,024)이다. int8 양자화를 측정했다.
 
-``` text
+```text
 정밀도    크기      ALL      PyTorch 일치
 fp16    1081MB   61.0ms      0.99981
 int8     542MB   51.2ms      0.98623
@@ -2160,7 +2162,7 @@ Phase 0에서 자체 평가셋으로 재검증할 대상이며, 그 전까지의
 **한국어 리트리벌** --- NDCG@10, Korean-MTEB-Retrieval-Evaluators 코드베이스
 (출처: telepix 모델 카드). 벤치마크별로 격차가 다르므로 단일 순위로 읽지 않는다.
 
-``` text
+```text
 모델                            STELLA(XL)  MTEB(ko)  RTEB(en)  License
 PIXIE-Spell-v1.5-0.6B              0.6731    0.7717    0.5923   Apache 2.0
 PIXIE-Rune-v1.5 (0.5B)             0.6559    0.7651    0.5546   Apache 2.0
@@ -2175,14 +2177,14 @@ Rev. 2에 기록했던 단일 수치(0.7345 / 0.7126)는 출처가 불명확해 
 
 **Reranker** --- MTEB-R
 
-``` text
+```text
 Qwen3-Reranker-0.6B    65.80   Apache 2.0, 32K ctx, Q6_K 약 472MB
 BGE-reranker-v2-m3     57.03
 ```
 
 **한국어 STT** --- CER
 
-``` text
+```text
 Whisper large-v3-turbo (809M)   5.59%   13~14x RTFx, 101개 언어
 SenseVoice Small                8.28%   52~118x RTFx, CJK 특화
 Parakeet V3                     미지원

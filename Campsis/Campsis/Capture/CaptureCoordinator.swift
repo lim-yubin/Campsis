@@ -45,7 +45,13 @@ final class CaptureCoordinator {
     }
 
     private func handleQuickMemory() {
-        // Phase 4: Quick Note / Voice Memo popup
+        NSLog("[Campsis] handleQuickMemory triggered")
+        Task { @MainActor in
+            CapturePopupController.shared.showQuickNote(
+                repository: repository,
+                processingQueue: processingQueue
+            )
+        }
     }
 
     @MainActor

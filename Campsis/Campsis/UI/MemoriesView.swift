@@ -1,10 +1,13 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MemoriesView: View {
     @Environment(AppState.self) var appState
     @State private var sources: [Source] = []
     @State private var selectedFilter: SourceFilter = .all
     @State private var selectedSource: Source?
+    @State private var showFileImporter = false
+    @State private var importStatus: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +19,13 @@ struct MemoriesView: View {
         .onChange(of: selectedFilter) { _, _ in loadSources() }
         .sheet(item: $selectedSource) { source in
             SourceDetailView(source: source)
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.pdf, .plainText, .png, .jpeg],
+            allowsMultipleSelection: true
+        ) { result in
+            handleFileImport(result)
         }
     }
 
@@ -31,20 +41,108 @@ struct MemoriesView: View {
 
             Spacer()
 
+            if let status = importStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Text("\(sources.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Button {
+                showFileImporter = true
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Import File")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
     }
 
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            let importer = FileImporter(
+                repository: appState.sourceRepository,
+                processingQueue: appState.processingQueueRef as? ProcessingQueue
+            )
+            Task {
+                var count = 0
+                for url in urls {
+                    do {
+                        _ = try await importer.importFile(at: url)
+                        count += 1
+                    } catch {
+                        NSLog("[Campsis] File import error: \(error)")
+                    }
+                }
+                await MainActor.run {
+                    importStatus = "\(count) file(s) imported"
+                    loadSources()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        importStatus = nil
+                    }
+                }
+            }
+        case .failure(let error):
+            NSLog("[Campsis] File picker error: \(error)")
+        }
+    }
+
+    @State private var sourceToDelete: Source?
+
     private var sourceList: some View {
-        List(sources) { source in
-            MemoryRowView(source: source)
-                .onTapGesture { selectedSource = source }
+        List {
+            ForEach(sources) { source in
+                MemoryRowView(source: source)
+                    .onTapGesture { selectedSource = source }
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            sourceToDelete = source
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+            }
+            .onDelete { offsets in
+                if let index = offsets.first {
+                    sourceToDelete = sources[index]
+                }
+            }
         }
         .listStyle(.plain)
+        .confirmationDialog(
+            "이 기억을 삭제하시겠습니까?",
+            isPresented: Binding(
+                get: { sourceToDelete != nil },
+                set: { if !$0 { sourceToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("삭제", role: .destructive) {
+                if let source = sourceToDelete {
+                    deleteSource(source)
+                }
+            }
+            Button("취소", role: .cancel) {
+                sourceToDelete = nil
+            }
+        } message: {
+            Text("삭제된 기억은 복구할 수 없습니다.")
+        }
+    }
+
+    private func deleteSource(_ source: Source) {
+        do {
+            try appState.sourceRepository.delete(source)
+            sources.removeAll { $0.id == source.id }
+        } catch {
+            NSLog("[Campsis] Failed to delete source: \(error)")
+        }
     }
 
     private func loadSources() {

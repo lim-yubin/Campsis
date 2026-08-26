@@ -53,15 +53,53 @@ struct SourceDetailView: View {
         }
     }
 
+    private static let contentPreviewLimit = 2000
+
+    @State private var showFullContent = false
+
     @ViewBuilder
     private var contentSection: some View {
         switch source.type {
         case .selectedText, .note, .file:
             if let content = source.content {
                 GroupBox("Content") {
-                    Text(content)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if showFullContent {
+                            ScrollView {
+                                Text(content)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 400)
+                        } else {
+                            let preview = content.count > Self.contentPreviewLimit
+                                ? String(content.prefix(Self.contentPreviewLimit)) + "..."
+                                : content
+                            Text(preview)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        HStack {
+                            if content.count > Self.contentPreviewLimit {
+                                Button(showFullContent ? "Show less" : "Show all (\(content.count) chars)") {
+                                    showFullContent.toggle()
+                                }
+                                .font(.caption)
+                                .buttonStyle(.borderless)
+                            }
+
+                            if source.type == .file, let path = source.filePath {
+                                Spacer()
+                                Button("Open Original") {
+                                    let url = AppPaths.absoluteURL(from: path)
+                                    NSWorkspace.shared.open(url)
+                                }
+                                .font(.caption)
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                    }
                 }
             }
         case .screenshot:

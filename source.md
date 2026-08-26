@@ -53,6 +53,29 @@ Dock을 차지하지 않고, 메뉴바에 조용히 상주합니다.
 - Quick Memory / Open Memory / Settings / Quit 메뉴
 - Dock 아이콘 없음 — 깔끔한 작업 환경 유지
 
+### Quick Note
+
+`⌥⇧ Space` 하나로 떠오르는 생각을 바로 기록합니다.
+
+- 키보드 단축키로 즉시 메모 팝업
+- 여러 줄 텍스트 입력
+- 저장 즉시 AI가 요약 + 태깅 + 검색 인덱싱
+- 아이디어, 할 일, 대화 내용 등 무엇이든
+
+**기술:** NSPanel, SwiftUI TextEditor, ProcessingQueue 자동 연동
+
+### 파일 가져오기
+
+PDF, 텍스트, 이미지 파일을 드래그하거나 선택해서 기억에 추가합니다.
+
+- 앱 창에 파일 드래그 앤 드롭
+- 또는 + 버튼으로 파일 선택
+- PDF: 텍스트 자동 추출 → 검색 가능
+- 이미지: OCR로 텍스트 추출
+- TXT/Markdown: 전체 내용 저장
+
+**기술:** PDFKit, UniformTypeIdentifiers, fileImporter
+
 ### 커스텀 단축키
 
 기본 단축키가 불편하면 원하는 키 조합으로 변경할 수 있습니다.

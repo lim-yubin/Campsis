@@ -33,6 +33,15 @@ nonisolated struct SourceRepository: Sendable {
         }
     }
 
+    func fetchAll(type: SourceType) throws -> [Source] {
+        try dbQueue.read { db in
+            try Source
+                .filter(Source.Columns.type == type.rawValue)
+                .order(Source.Columns.capturedAt.desc)
+                .fetchAll(db)
+        }
+    }
+
     func fetch(id: String) throws -> Source? {
         try dbQueue.read { db in
             try Source.fetchOne(db, key: id)

@@ -19,7 +19,7 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 | **5. 실사용 검증** | 직접 써보면서 다듬기 | 시범 운영 |
 | **6. 배포** | 다른 사람도 쓸 수 있게 출시 | 앱스토어 오픈 |
 
-**현재 위치:** Phase 2 완료 (Embedding 제외), Phase 3 시작 직전
+**현재 위치:** Phase 3 구현 완료 — Recall 기능 전체 동작 (Reranker 미적용)
 
 ---
 
@@ -35,7 +35,7 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 | 0.6 | 라이선스 전수 확인 | 완료 | D16 |
 | 0.7 | 평가셋 확장 | **미완료** | 문서 12건/질문 13건 — 부족. Phase 5에서 실사용 데이터로 보강 |
 
-**미결정 사항:** O1(임베딩 모델 최종 확정)은 평가셋 부족으로 보류 중.
+**해소:** O1(임베딩 모델) → **BAAI/bge-m3** 확정 (2026-08-26). MIT, no-note 강건성 최고, 프롬프트 불필요.
 
 ---
 
@@ -56,7 +56,7 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 
 ---
 
-## Phase 2 — Processing `완료` (Embedding 제외)
+## Phase 2 — Processing `완료`
 
 Apple Foundation Models만으로 파이프라인을 완성한다. MLX는 도입하지 않는다.
 
@@ -67,26 +67,26 @@ Apple Foundation Models만으로 파이프라인을 완성한다. MLX는 도입�
 | 2.3 | Summary 생성 | 완료 | 2.2 | AppleFMGenerator에 포함 |
 | 2.4 | Topics 추출 (@Generable 구조화 출력) | 완료 | 2.2 | AppleFMGenerator에 포함 |
 | 2.5 | 가드레일 거부율 측정 + 실패 처리 | 완료 | 2.3, 2.4 | max 3회 재시도 후 failed |
-| 2.6 | Local Embedding | **스킵** | O1 확정 필요 | Phase 5에서 평가셋 보강 후 결정 |
+| 2.6 | Local Embedding | 완료 | O1 확정됨 (bge-m3) | Core ML bge-m3 fp16, Phase 3에 통합 |
 | 2.7 | Background processing pipeline | 완료 | 2.1~2.5 | Actor 기반 ProcessingQueue |
 | 2.8 | Failed job retry | 완료 | 2.7 | 3회 초과 시 failed 마킹 |
 
-**블로커:** 2.6은 O1(임베딩 모델 확정)이 필요. Phase 5에서 해소 예정.
-
 ---
 
-## Phase 3 — Recall `대기`
+## Phase 3 — Recall `완료` (Reranker 보류)
 
 | # | 작업 | 상태 | 의존성 | 비고 |
 |---|------|------|--------|------|
-| 3.1 | Vector Search (Top-N) | 대기 | 2.6 | |
-| 3.2 | Reranker (Top-K) | 대기 | 3.1 | |
-| 3.3 | Search UI + Progressive rendering | 대기 | 3.1 | §12.1 |
-| 3.4 | RAG answer + 거절 정책 | 대기 | 3.2 | §12.2, Apple FM 먼저 |
-| 3.5 | Source citation | 대기 | 3.4 | |
-| 3.6 | Source Detail | 대기 | 3.3 | |
+| 3.0 | Local Embedding (bge-m3, Core ML) | 완료 | O1 확정 | EmbeddingService + swift-transformers 토크나이저 |
+| 3.1 | Vector Search (Top-N) | 완료 | 3.0 | Accelerate vDSP cosine similarity, brute-force |
+| 3.2 | Reranker (Top-K) | **대기** | 3.1 | 품질 실측 후 조건부 추가 |
+| 3.3 | Search UI + Progressive rendering | 완료 | 3.1 | Sources 먼저 표시 → Answer 스트리밍 |
+| 3.4 | RAG answer + 거절 정책 | 완료 | 3.1 | Apple FM AnswerGenerator, 근거 부족 시 거절 |
+| 3.5 | Source citation | 완료 | 3.4 | Answer 아래 참조 Source 목록 |
+| 3.6 | Source Detail | 완료 | 3.3 | 원본 텍스트/스크린샷/OCR/Summary/Topics/Metadata |
+| 3.7 | Memories View | 완료 | 3.6 | 시간순 목록 + 타입 필터 |
 
-**게이트:** Phase 3 완료 후 Answer 품질 실측. 불충분 시 Phase 3.5로 진행.
+**게이트:** Answer 품질 실측 후 불충분 시 Phase 3.5(MLX Reranker)로 진행.
 
 ---
 
@@ -147,5 +147,7 @@ Phase 3의 Answer 품질이 불충분할 경우에만 수행.
 
 | 날짜 | 변경 내용 |
 |------|-----------|
+| 2026-08-26 | Phase 3 완료: Core ML Embedding, Vector Search, Search UI, RAG Answer, Citation, Memories View 구현. Reranker는 품질 실측 후 추가 예정 |
+| 2026-08-26 | O1 해소: BAAI/bge-m3 확정 (MIT, fp16, 1081MB). O13 해소: Searchable Text 조합 확정. Phase 3에 3.0(Local Embedding) 추가 |
 | 2026-08-26 | Phase 2 완료 (2.6 Embedding 스킵 — O1 미확정). OCR, Summary, Topics, Pipeline, Retry 구현 |
 | 2026-08-26 | 초기 작성. Phase 0, 1 완료 반영. Phase 2 이후 PRD 기반으로 작성 |

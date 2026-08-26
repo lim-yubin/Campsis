@@ -1947,6 +1947,8 @@ MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 | D18 | 인코더 후보 4종 Core ML 변환 검증 완료 | §28.3.2 --- 전부 통과, 일치 0.9998 이상 |
 | D19 | 평가셋 적재는 앱 기능 아님, 외부 스크립트가 DB를 읽음 | §25 Phase 1 --- §18 충돌 회피, 원복 대상 미생성 |
 | D20 | 도그푸딩 도구는 `#if DEBUG`, 릴리스 점검은 CI 게이트 | §25 Phase 1·6 --- 기억에 의존하지 않음 |
+| D25 | Embedding 모델: BAAI/bge-m3 (MIT, fp16, 1081MB) | §11.5 --- no-note 강건성 최고, 프롬프트 불필요, Phase 5 재검증 예정 |
+| D26 | Searchable Text 조합: User Note + Summary + Content + Context | §10 --- embedding_version v1 기준. 변경 시 재색인 필요 |
 
 **후보에서 제외된 것**
 
@@ -1961,11 +1963,12 @@ MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 
 | # | 미결 항목 | 결정 시점 | 차단 요인 |
 |---|---|---|---|
-| O1 | **Embedding 모델 확정** | Phase 0 | 평가셋 부족 (질문 13개) |
-| O14 | Embedding int8 양자화 채택 여부 | Phase 0 | 일치 0.986 --- 품질 영향 미확인 (§28.3.2) |
-| O15 | ANE 실제 활용 여부 | Phase 1 | Core ML 지연 격차 1.35배로 불확실 |
-| O4 | Analysis에 Apple Foundation Models 사용 여부 | Phase 0 | 가드레일 거부율 실측 필요 |
-| O5 | STT 모델 (Whisper turbo vs Qwen3-ASR) | Phase 0 | 한영 코드 스위칭 실측 필요 |
+| O1 | ~~Embedding 모델 확정~~ **해소** | Phase 0 | **BAAI/bge-m3 (MIT, XLM-R 568M, Core ML fp16) 확정 (2026-08-26).** 게이트 2·3 통과, no-note 성적 1위(0.923), MIT 최관대, 프롬프트 접두어 불필요. Phase 5에서 실데이터 재검증 |
+| O13 | ~~Searchable Text 필드 조합 확정~~ **해소** | Phase 0 | **`[User Note] + [Summary] + [Content/OCR/Transcript] + [Context]` 확정 (2026-08-26).** User Note가 가장 강한 검색 신호(§28.3.1). Context 제거 시 영향 미미하나 포함 비용 없음 |
+| O14 | Embedding int8 양자화 채택 여부 | Phase 5 | 일치 0.986 --- fp16(1081MB) 우선 사용. Phase 5 실데이터로 품질 열화 여부 확인 후 결정 |
+| O15 | ANE 실제 활용 여부 | Phase 5 | Core ML 지연 격차 1.35배로 불확실 |
+| O4 | ~~Analysis에 Apple Foundation Models 사용 여부~~ **해소** | Phase 2 | Apple FM 사용 확정. 가드레일 거부 시 failed 마킹 (max 3회 재시도). Phase 2에서 구현 완료 |
+| O5 | STT 모델 (Whisper turbo vs Qwen3-ASR) | Phase 4 | 한영 코드 스위칭 실측 필요 |
 | O6 | Answer 모델 최종 티어 구성 | Phase 3 | 실사용 품질 확인 후 |
 | O11 | MLX 도입 여부 | Phase 3 종료 | Apple FM Answer 품질 실측 결과 |
 | O12 | macOS 27 이후 Apple 통합 추상화로 이전할지 | 27 정식 출시 후 | 이전 필수 아님 |
@@ -1974,15 +1977,7 @@ MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 | O9 | 결제 머천트 및 라이선스 시스템 | Phase 6 | MVP 검증 이후 |
 | O10 | 국내 사업자등록·부가세 처리 | Phase 6 | 세무 확인 필요 (제품 결정 아님) |
 
-**O1이 가장 중요하다.** 나머지 미결 항목은 나중에 바꿀 수 있지만
-Embedding은 교체 시 전체 재색인을 유발한다(§9.5).
-
-O13을 추가한다. Searchable Text 조합 규칙도 `embedding_version`에 묶이므로
-(§9.5) O1과 함께 확정해야 한다.
-
-| # | 미결 항목 | 결정 시점 | 차단 요인 |
-|---|---|---|---|
-| O13 | Searchable Text 필드 조합 확정 | Phase 0 | O1과 동시 결정 (재색인 유발) |
+**O1 해소로 Phase 3 진입이 가능해졌다.** 남은 미결 항목은 모두 해당 Phase에서 결정 가능.
 
 ### 28.2.1 Phase 1 Selected Text 감지 구현 현황
 
@@ -2018,6 +2013,9 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D22 | Screenshot 대상 디스플레이는 마우스 커서 위치 기준 | 메인 모니터 고정이 아닌 사용자가 보고 있는 화면 캡처 |
 | D23 | Capture Popup은 마우스가 있는 모니터에 표시 | 캡처한 화면과 같은 모니터에 결과를 보여줌 |
 | D24 | AppDelegate 패턴으로 CaptureCoordinator 유지 | SwiftUI App struct의 `@State`는 body에서 미참조 시 생명주기 불안정. `NSApplicationDelegateAdaptor`가 확실함 |
+| D27 | Reranker(Phase 3.2) 미적용, brute-force vector search | MVP 규모(수천 벡터)에서 <50ms. 품질 실측 후 조건부 추가 |
+| D28 | RAG Answer에 Apple FM 사용 (Phase 3.4) | Context 8192 토큰 내에서 충분. MLX fallback은 Phase 3.5에서 조건부 |
+| D29 | 메인 창 SwiftUI Window scene + @Observable AppState | ObservableObject의 `@available` 프로퍼티 제약으로 @Observable 채택 |
 
 ### 28.3.1 Phase 0 진행 현황
 

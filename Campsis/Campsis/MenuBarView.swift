@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MenuBarView: View {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
         Button("Quick Memory") {
             // Phase 4
@@ -10,8 +12,10 @@ struct MenuBarView: View {
         Divider()
 
         Button("Open Memory") {
-            // Phase 3: Search UI
+            openWindow(id: "main")
+            NSApp.activate(ignoringOtherApps: true)
         }
+        .keyboardShortcut("o", modifiers: [.option])
 
         Divider()
 

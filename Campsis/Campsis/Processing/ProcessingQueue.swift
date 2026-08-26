@@ -4,12 +4,17 @@ import Foundation
 actor ProcessingQueue {
     private let repository: SourceRepository
     private let generator: TextGenerator
+    private let embeddingService: EmbeddingService
+    private let embeddingRepository: EmbeddingRepository
     private let maxAttempts = 3
     private var isProcessing = false
 
-    init(repository: SourceRepository, generator: TextGenerator) {
+    init(repository: SourceRepository, generator: TextGenerator,
+         embeddingService: EmbeddingService, embeddingRepository: EmbeddingRepository) {
         self.repository = repository
         self.generator = generator
+        self.embeddingService = embeddingService
+        self.embeddingRepository = embeddingRepository
     }
 
     func enqueue(_ source: Source) {
@@ -56,6 +61,8 @@ actor ProcessingQueue {
 
             source.processingStatus = .completed
             try? repository.updateProcessingResult(&source)
+
+            await embedSource(source)
             NSLog("[Campsis] Processed source \(source.id): completed")
 
         } catch TextGeneratorError.guardrailRefusal {
@@ -103,5 +110,52 @@ actor ProcessingQueue {
         guard let data = try? JSONEncoder().encode(topics),
               let json = String(data: data, encoding: .utf8) else { return nil }
         return json
+    }
+
+    private func embedSource(_ source: Source) async {
+        do {
+            try await embeddingService.loadIfNeeded()
+        } catch {
+            NSLog("[Campsis] Embedding model not available: \(error)")
+            return
+        }
+
+        let searchableText = SearchableTextBuilder.build(from: source)
+        guard !searchableText.isEmpty else { return }
+
+        do {
+            let vector = try await embeddingService.embed(searchableText)
+            var record = EmbeddingRecord(
+                sourceId: source.id,
+                vector: vector,
+                model: EmbeddingService.modelName,
+                version: EmbeddingService.embeddingVersion
+            )
+            try embeddingRepository.save(&record)
+            NSLog("[Campsis] Embedding saved for source \(source.id)")
+        } catch {
+            NSLog("[Campsis] Embedding failed for source \(source.id): \(error)")
+        }
+    }
+
+    func embedAllMissing() async {
+        do {
+            try await embeddingService.loadIfNeeded()
+        } catch {
+            NSLog("[Campsis] Embedding model not available for batch: \(error)")
+            return
+        }
+
+        do {
+            let sources = try embeddingRepository.sourcesWithoutEmbedding(
+                model: EmbeddingService.modelName,
+                version: EmbeddingService.embeddingVersion
+            )
+            for source in sources {
+                await embedSource(source)
+            }
+        } catch {
+            NSLog("[Campsis] Batch embedding error: \(error)")
+        }
     }
 }

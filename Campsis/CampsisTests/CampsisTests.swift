@@ -217,8 +217,11 @@ struct ProcessingQueueTests {
         guard #available(macOS 26.0, *) else { return }
         let db = try makeInMemoryDatabase()
         let repo = SourceRepository(dbQueue: db.dbQueue)
+        let embedRepo = EmbeddingRepository(dbQueue: db.dbQueue)
+        let embedService = EmbeddingService()
         let generator = MockTextGenerator()
-        let queue = ProcessingQueue(repository: repo, generator: generator)
+        let queue = ProcessingQueue(repository: repo, generator: generator,
+                                    embeddingService: embedService, embeddingRepository: embedRepo)
 
         var source = Source(type: .selectedText, content: "Hello world from test")
         try repo.save(&source)
@@ -236,8 +239,11 @@ struct ProcessingQueueTests {
         guard #available(macOS 26.0, *) else { return }
         let db = try makeInMemoryDatabase()
         let repo = SourceRepository(dbQueue: db.dbQueue)
+        let embedRepo = EmbeddingRepository(dbQueue: db.dbQueue)
+        let embedService = EmbeddingService()
         let generator = MockTextGenerator(shouldRefuse: true)
-        let queue = ProcessingQueue(repository: repo, generator: generator)
+        let queue = ProcessingQueue(repository: repo, generator: generator,
+                                    embeddingService: embedService, embeddingRepository: embedRepo)
 
         var source = Source(type: .selectedText, content: "Controversial content")
         try repo.save(&source)

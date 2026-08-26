@@ -29,5 +29,28 @@ nonisolated enum AppMigrations {
                 t.add(column: "processing_attempts", .integer).notNull().defaults(to: 0)
             }
         }
+
+        migrator.registerMigration("v3-embedding") { db in
+            try db.create(table: "embedding") { t in
+                t.primaryKey("id", .text)
+                t.column("source_id", .text).notNull()
+                    .references("source", onDelete: .cascade)
+                t.column("vector", .blob).notNull()
+                t.column("embedding_model", .text).notNull()
+                t.column("embedding_version", .text).notNull()
+                t.column("dimensions", .integer).notNull()
+                t.column("created_at", .datetime).notNull()
+            }
+            try db.create(
+                index: "idx_embedding_source",
+                on: "embedding",
+                columns: ["source_id"]
+            )
+            try db.create(
+                index: "idx_embedding_version",
+                on: "embedding",
+                columns: ["embedding_model", "embedding_version"]
+            )
+        }
     }
 }

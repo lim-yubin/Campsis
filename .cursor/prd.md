@@ -1970,7 +1970,7 @@ MacBook Pro / Apple M4 Pro / 12-core (8P + 4E) / 48GB / macOS 26.5.2
 | O11 | MLX 도입 여부 | Phase 3 종료 | Apple FM Answer 품질 실측 결과 |
 | O12 | macOS 27 이후 Apple 통합 추상화로 이전할지 | 27 정식 출시 후 | 이전 필수 아님 |
 | O7 | Top-N / Top-K 값, Chunking 파라미터 | Phase 3 | 실사용 조정 |
-| O8 | 기본 단축키 충돌 검증 | Phase 1 | macOS/주요 앱 실측 (§6.1) |
+| O8 | ~~기본 단축키 충돌 검증~~ **해소** | Phase 1 | `⌥ Space`는 한국어 입력 소스 전환과 충돌. 사용자가 시스템 설정에서 입력 소스 단축키를 해제하거나, Settings에서 다른 키로 변경 가능. 기본값 유지 결정 |
 | O9 | 결제 머천트 및 라이선스 시스템 | Phase 6 | MVP 검증 이후 |
 | O10 | 국내 사업자등록·부가세 처리 | Phase 6 | 세무 확인 필요 (제품 결정 아님) |
 
@@ -1999,15 +1999,25 @@ Phase 1에서 구현한 Selected Text 감지 접근 방식과 실측 대기 상�
 
 | 앱 | AX API | 클립보드 폴백 | Window Title | URL | 비고 |
 |---|---|---|---|---|---|
-| Chrome | 실측 대기 | 실측 대기 | 실측 대기 | AppleScript | |
-| Slack | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
-| Cursor | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
-| Terminal | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
-| Preview (PDF) | 실측 대기 | 실측 대기 | 실측 대기 | N/A | |
+| Chrome | 성공 | 미사용 | 성공 | AppleScript 성공 | AX만으로 충분 |
+| Slack | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
+| Cursor | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
+| Terminal | 실패 | 성공 | 성공 | N/A | AX 미지원, 폴백 동작 |
+| Preview (PDF) | 성공 | 미사용 | 성공 | N/A | AX만으로 충분 |
 
-**실측 절차:** 앱을 빌드 후 실행하고, 시스템 설정에서 Accessibility 권한을
-부여한 뒤 각 앱에서 텍스트를 선택하고 `⌥Space`를 누른다. Capture Popup에
-선택한 텍스트가 뜨면 성공이다.
+**실측 결과 (2026-08-26):** Terminal을 제외한 모든 주요 앱에서 AX API 1차
+감지가 동작한다. Terminal은 클립보드 폴백으로 정상 캡처됨. 기술 리스크 해소.
+
+### 28.2.2 Phase 1 구현 시 추가된 설계 결정
+
+PRD 원안에 없었으나 구현 과정에서 결정된 사항:
+
+| 결정 | 내용 | 근거 |
+|------|------|------|
+| D21 | Screenshot 컨텍스트는 마우스 커서 아래 윈도우 기준 | 듀얼모니터에서 frontmostApp과 실제 보는 화면이 다를 수 있음. `SCShareableContent.windows`의 z-order + `CGRect.contains(mousePoint)`로 해결 |
+| D22 | Screenshot 대상 디스플레이는 마우스 커서 위치 기준 | 메인 모니터 고정이 아닌 사용자가 보고 있는 화면 캡처 |
+| D23 | Capture Popup은 마우스가 있는 모니터에 표시 | 캡처한 화면과 같은 모니터에 결과를 보여줌 |
+| D24 | AppDelegate 패턴으로 CaptureCoordinator 유지 | SwiftUI App struct의 `@State`는 body에서 미참조 시 생명주기 불안정. `NSApplicationDelegateAdaptor`가 확실함 |
 
 ### 28.3.1 Phase 0 진행 현황
 

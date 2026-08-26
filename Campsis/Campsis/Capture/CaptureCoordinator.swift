@@ -4,9 +4,11 @@ import KeyboardShortcuts
 @Observable
 final class CaptureCoordinator {
     private let repository: SourceRepository
+    private let processingQueue: ProcessingQueue?
 
-    init(repository: SourceRepository) {
+    init(repository: SourceRepository, processingQueue: ProcessingQueue?) {
         self.repository = repository
+        self.processingQueue = processingQueue
         registerShortcuts()
     }
 
@@ -48,6 +50,6 @@ final class CaptureCoordinator {
 
     @MainActor
     private func showCapturePopup(with payload: CapturePayload) {
-        CapturePopupController.shared.show(payload: payload, repository: repository)
+        CapturePopupController.shared.show(payload: payload, repository: repository, processingQueue: processingQueue)
     }
 }

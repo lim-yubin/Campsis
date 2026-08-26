@@ -3,6 +3,7 @@ import SwiftUI
 struct CapturePopupView: View {
     let payload: CapturePayload
     let repository: SourceRepository
+    let processingQueue: ProcessingQueue?
     let dismiss: () -> Void
 
     @State private var userNote: String = ""
@@ -102,6 +103,9 @@ struct CapturePopupView: View {
 
         do {
             try repository.save(&source)
+            if let queue = processingQueue {
+                Task { await queue.enqueue(source) }
+            }
         } catch {
             NSLog("Failed to save source: \(error)")
         }

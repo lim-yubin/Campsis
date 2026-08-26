@@ -21,5 +21,13 @@ nonisolated enum AppMigrations {
                 t.column("processing_status", .text).notNull().defaults(to: "pending")
             }
         }
+
+        migrator.registerMigration("v2-processing") { db in
+            try db.alter(table: "source") { t in
+                t.add(column: "summary", .text)
+                t.add(column: "topics", .text)
+                t.add(column: "processing_attempts", .integer).notNull().defaults(to: 0)
+            }
+        }
     }
 }

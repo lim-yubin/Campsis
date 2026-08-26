@@ -32,6 +32,9 @@ nonisolated struct Source: Codable, Sendable, Identifiable {
     var capturedAt: Date
     var createdAt: Date
     var processingStatus: ProcessingStatus
+    var summary: String?
+    var topics: String?
+    var processingAttempts: Int
 
     init(
         type: SourceType,
@@ -61,6 +64,9 @@ nonisolated struct Source: Codable, Sendable, Identifiable {
         self.capturedAt = Date()
         self.createdAt = Date()
         self.processingStatus = .pending
+        self.summary = nil
+        self.topics = nil
+        self.processingAttempts = 0
     }
 }
 
@@ -81,6 +87,8 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case capturedAt = "captured_at"
         case createdAt = "created_at"
         case processingStatus = "processing_status"
+        case summary, topics
+        case processingAttempts = "processing_attempts"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -97,5 +105,7 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case capturedAt = "captured_at"
         case createdAt = "created_at"
         case processingStatus = "processing_status"
+        case summary, topics
+        case processingAttempts = "processing_attempts"
     }
 }

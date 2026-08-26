@@ -112,6 +112,147 @@ struct SourceRepositoryTests {
     }
 }
 
+// MARK: - Phase 2 Tests
+
+struct MigrationV2Tests {
+    @Test func v2MigrationAddsSummaryColumn() throws {
+        let db = try makeInMemoryDatabase()
+        let columns = try db.dbQueue.read { db in
+            try Row.fetchAll(db, sql: "PRAGMA table_info(source)")
+        }
+        let names: [String] = columns.map { $0["name"] }
+        #expect(names.contains("summary"))
+        #expect(names.contains("topics"))
+        #expect(names.contains("processing_attempts"))
+    }
+}
+
+struct ProcessingPipelineTests {
+    @Test func fetchPendingReturnsPendingSources() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+
+        var s1 = Source(type: .selectedText, content: "Pending source")
+        try repo.save(&s1)
+
+        var s2 = Source(type: .selectedText, content: "Completed source")
+        s2.processingStatus = .completed
+        try repo.save(&s2)
+
+        let pending = try repo.fetchPending()
+        #expect(pending.count == 1)
+        #expect(pending[0].content == "Pending source")
+    }
+
+    @Test func updateProcessingResultPersists() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+
+        var source = Source(type: .selectedText, content: "Test")
+        try repo.save(&source)
+
+        source.processingStatus = .completed
+        source.summary = "This is a test summary"
+        source.topics = "[\"test\",\"unit\"]"
+        source.processingAttempts = 1
+        try repo.updateProcessingResult(&source)
+
+        let fetched = try repo.fetch(id: source.id)
+        #expect(fetched?.processingStatus == .completed)
+        #expect(fetched?.summary == "This is a test summary")
+        #expect(fetched?.topics == "[\"test\",\"unit\"]")
+        #expect(fetched?.processingAttempts == 1)
+    }
+
+    @Test func processingAttemptsDefaultsToZero() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+
+        var source = Source(type: .note, content: "New source")
+        try repo.save(&source)
+
+        let fetched = try repo.fetch(id: source.id)
+        #expect(fetched?.processingAttempts == 0)
+    }
+
+    @Test func failedStatusAfterMaxAttempts() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+
+        var source = Source(type: .selectedText, content: "Will fail")
+        source.processingAttempts = 3
+        source.processingStatus = .failed
+        try repo.save(&source)
+
+        let fetched = try repo.fetch(id: source.id)
+        #expect(fetched?.processingStatus == .failed)
+        #expect(fetched?.processingAttempts == 3)
+    }
+}
+
+// MARK: - Mock TextGenerator for testing
+
+struct MockTextGenerator: TextGenerator {
+    var shouldFail = false
+    var shouldRefuse = false
+
+    func analyze(_ text: String) async throws -> Analysis {
+        if shouldRefuse {
+            throw TextGeneratorError.guardrailRefusal
+        }
+        if shouldFail {
+            throw TextGeneratorError.generationFailed(
+                underlying: NSError(domain: "test", code: -1)
+            )
+        }
+        return Analysis(
+            summary: "Summary of: \(text.prefix(20))",
+            topics: ["test", "mock"]
+        )
+    }
+}
+
+struct ProcessingQueueTests {
+    @Test func processesSourceToCompletion() async throws {
+        guard #available(macOS 26.0, *) else { return }
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+        let generator = MockTextGenerator()
+        let queue = ProcessingQueue(repository: repo, generator: generator)
+
+        var source = Source(type: .selectedText, content: "Hello world from test")
+        try repo.save(&source)
+
+        await queue.processAllPending()
+        try await Task.sleep(for: .milliseconds(500))
+
+        let fetched = try repo.fetch(id: source.id)
+        #expect(fetched?.processingStatus == .completed)
+        #expect(fetched?.summary != nil)
+        #expect(fetched?.topics != nil)
+    }
+
+    @Test func guardrailRefusalRetriesUpToMax() async throws {
+        guard #available(macOS 26.0, *) else { return }
+        let db = try makeInMemoryDatabase()
+        let repo = SourceRepository(dbQueue: db.dbQueue)
+        let generator = MockTextGenerator(shouldRefuse: true)
+        let queue = ProcessingQueue(repository: repo, generator: generator)
+
+        var source = Source(type: .selectedText, content: "Controversial content")
+        try repo.save(&source)
+
+        for _ in 0..<3 {
+            await queue.processAllPending()
+            try await Task.sleep(for: .milliseconds(200))
+        }
+
+        let fetched = try repo.fetch(id: source.id)
+        #expect(fetched?.processingStatus == .failed)
+        #expect(fetched?.processingAttempts == 3)
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

@@ -45,6 +45,22 @@ nonisolated struct SourceRepository: Sendable {
         }
     }
 
+    func fetchPending(limit: Int = 10) throws -> [Source] {
+        try dbQueue.read { db in
+            try Source
+                .filter(Source.Columns.processingStatus == ProcessingStatus.pending.rawValue)
+                .order(Source.Columns.capturedAt.asc)
+                .limit(limit)
+                .fetchAll(db)
+        }
+    }
+
+    func updateProcessingResult(_ source: inout Source) throws {
+        try dbQueue.write { db in
+            try source.update(db)
+        }
+    }
+
     private func removeAssociatedFiles(_ source: Source) {
         let fm = FileManager.default
         let paths = [source.screenshotPath, source.filePath, source.audioPath].compactMap { $0 }

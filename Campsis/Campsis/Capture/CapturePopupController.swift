@@ -6,10 +6,10 @@ final class CapturePopupController {
 
     private var panel: NSPanel?
 
-    func show(payload: CapturePayload, repository: SourceRepository) {
+    func show(payload: CapturePayload, repository: SourceRepository, processingQueue: ProcessingQueue?) {
         close()
 
-        let view = CapturePopupView(payload: payload, repository: repository) { [weak self] in
+        let view = CapturePopupView(payload: payload, repository: repository, processingQueue: processingQueue) { [weak self] in
             self?.close()
         }
 

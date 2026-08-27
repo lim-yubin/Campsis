@@ -45,7 +45,7 @@ enum ScreenshotCapture {
     }
 
     private static func contextForMouseLocation(_ mouse: NSPoint, windows: [SCWindow], display: SCDisplay) -> (String?, String?) {
-        let displayFrame = CGDisplayBounds(display.displayID)
+        _ = CGDisplayBounds(display.displayID)
         let screenHeight = NSScreen.screens.first?.frame.maxY ?? 0
 
         let topmostWindow = windows.first { window in

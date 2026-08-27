@@ -1,85 +1,74 @@
 import SwiftUI
+import AppKit
 
-struct MarkdownTextView: View {
+struct MarkdownTextView: NSViewRepresentable {
     let text: String
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(parseBlocks().enumerated()), id: \.offset) { _, block in
-                blockView(block)
-            }
+    func makeNSView(context: Context) -> IntrinsicScrollView {
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isRichText = true
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+
+        let scrollView = IntrinsicScrollView()
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+        scrollView.documentView = textView
+
+        textView.textStorage?.setAttributedString(renderMarkdown(text))
+
+        DispatchQueue.main.async {
+            Self.updateHeight(scrollView: scrollView, textView: textView)
         }
-        .textSelection(.enabled)
+
+        return scrollView
     }
 
-    @ViewBuilder
-    private func blockView(_ block: MarkdownBlock) -> some View {
-        switch block {
-        case .heading(let level, let content):
-            Text(inlineMarkdown(content))
-                .font(headingFont(level))
-                .fontWeight(.semibold)
-                .padding(.top, level == 1 ? 6 : 3)
-
-        case .paragraph(let content):
-            Text(inlineMarkdown(content))
-                .font(.body)
-
-        case .listItem(let content, let ordered, let index):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(ordered ? "\(index)." : "•")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, alignment: .trailing)
-                Text(inlineMarkdown(content))
-                    .font(.body)
-            }
-
-        case .codeBlock(let content):
-            Text(content)
-                .font(.system(.callout, design: .monospaced))
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.textBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-
-        case .divider:
-            Divider()
-                .padding(.vertical, 4)
+    func updateNSView(_ scrollView: IntrinsicScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        textView.textStorage?.setAttributedString(renderMarkdown(text))
+        DispatchQueue.main.async {
+            Self.updateHeight(scrollView: scrollView, textView: textView)
         }
     }
 
-    private func headingFont(_ level: Int) -> Font {
-        switch level {
-        case 1: return .title2
-        case 2: return .title3
-        default: return .headline
+    private static func updateHeight(scrollView: IntrinsicScrollView, textView: NSTextView) {
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        let height = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
+        scrollView.contentHeight = max(height + 2, 20)
+        scrollView.invalidateIntrinsicContentSize()
+    }
+
+    class IntrinsicScrollView: NSScrollView {
+        var contentHeight: CGFloat = 20
+
+        override var intrinsicContentSize: NSSize {
+            NSSize(width: NSView.noIntrinsicMetric, height: contentHeight)
         }
     }
 
-    private func inlineMarkdown(_ text: String) -> AttributedString {
-        do {
-            return try AttributedString(
-                markdown: text,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            )
-        } catch {
-            return AttributedString(text)
-        }
-    }
-
-    private func parseBlocks() -> [MarkdownBlock] {
-        var blocks: [MarkdownBlock] = []
-        let lines = text.components(separatedBy: "\n")
+    private func renderMarkdown(_ markdown: String) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let lines = markdown.components(separatedBy: "\n")
+        let bodyFont = NSFont.systemFont(ofSize: 14)
+        let bodyColor = NSColor.labelColor
         var i = 0
-        var orderedIndex = 0
 
         while i < lines.count {
             let line = lines[i]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.isEmpty {
+                result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
                 i += 1
-                orderedIndex = 0
                 continue
             }
 
@@ -91,88 +80,123 @@ struct MarkdownTextView: View {
                     i += 1
                 }
                 i += 1
-                blocks.append(.codeBlock(codeLines.joined(separator: "\n")))
-                orderedIndex = 0
+                let code = codeLines.joined(separator: "\n")
+                let codeAttr: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                    .foregroundColor: bodyColor,
+                    .backgroundColor: NSColor.textBackgroundColor.withAlphaComponent(0.5)
+                ]
+                result.append(NSAttributedString(string: code + "\n", attributes: codeAttr))
                 continue
             }
 
             if trimmed == "---" || trimmed == "***" || trimmed == "___" {
-                blocks.append(.divider)
+                result.append(NSAttributedString(string: "\n", attributes: [.font: NSFont.systemFont(ofSize: 6)]))
                 i += 1
-                orderedIndex = 0
                 continue
             }
 
-            if let headingMatch = trimmed.headingLevel() {
-                blocks.append(.heading(headingMatch.level, headingMatch.content))
+            if let heading = parseHeading(trimmed) {
+                let fontSize: CGFloat = heading.level == 1 ? 20 : heading.level == 2 ? 17 : 15
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                    .foregroundColor: bodyColor
+                ]
+                result.append(renderInline(heading.content, baseAttrs: attrs))
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
                 i += 1
-                orderedIndex = 0
                 continue
             }
 
             if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
                 let content = String(trimmed.dropFirst(2))
-                blocks.append(.listItem(content, ordered: false, index: 0))
-                i += 1
-                orderedIndex = 0
-                continue
-            }
-
-            if let orderedMatch = trimmed.orderedListItem() {
-                orderedIndex += 1
-                blocks.append(.listItem(orderedMatch, ordered: true, index: orderedIndex))
+                let attrs: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: bodyColor]
+                result.append(NSAttributedString(string: "  • ", attributes: [.font: bodyFont, .foregroundColor: NSColor.secondaryLabelColor]))
+                result.append(renderInline(content, baseAttrs: attrs))
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
                 i += 1
                 continue
             }
 
-            var paragraphLines: [String] = [trimmed]
+            if let orderedContent = parseOrderedList(trimmed, at: i, in: lines) {
+                let attrs: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: bodyColor]
+                result.append(NSAttributedString(string: "  \(orderedContent.index). ", attributes: [.font: bodyFont, .foregroundColor: NSColor.secondaryLabelColor]))
+                result.append(renderInline(orderedContent.content, baseAttrs: attrs))
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
+                i += 1
+                continue
+            }
+
+            let attrs: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: bodyColor]
+            result.append(renderInline(trimmed, baseAttrs: attrs))
+            result.append(NSAttributedString(string: "\n", attributes: attrs))
             i += 1
-            while i < lines.count {
-                let nextLine = lines[i].trimmingCharacters(in: .whitespaces)
-                if nextLine.isEmpty || nextLine.hasPrefix("#") || nextLine.hasPrefix("```")
-                    || nextLine.hasPrefix("- ") || nextLine.hasPrefix("* ")
-                    || nextLine == "---" || nextLine == "***"
-                    || nextLine.orderedListItem() != nil {
-                    break
+        }
+
+        return result
+    }
+
+    private func renderInline(_ text: String, baseAttrs: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        var remaining = text[...]
+
+        while !remaining.isEmpty {
+            if remaining.hasPrefix("**") || remaining.hasPrefix("__") {
+                let marker = String(remaining.prefix(2))
+                remaining = remaining.dropFirst(2)
+                if let endRange = remaining.range(of: marker) {
+                    let bold = String(remaining[..<endRange.lowerBound])
+                    var attrs = baseAttrs
+                    if let font = attrs[.font] as? NSFont {
+                        attrs[.font] = NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
+                    }
+                    result.append(NSAttributedString(string: bold, attributes: attrs))
+                    remaining = remaining[endRange.upperBound...]
+                } else {
+                    result.append(NSAttributedString(string: marker, attributes: baseAttrs))
                 }
-                paragraphLines.append(nextLine)
-                i += 1
+            } else if remaining.hasPrefix("`") {
+                remaining = remaining.dropFirst(1)
+                if let endIdx = remaining.firstIndex(of: "`") {
+                    let code = String(remaining[..<endIdx])
+                    var attrs = baseAttrs
+                    attrs[.font] = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+                    attrs[.backgroundColor] = NSColor.textBackgroundColor.withAlphaComponent(0.5)
+                    result.append(NSAttributedString(string: code, attributes: attrs))
+                    remaining = remaining[remaining.index(after: endIdx)...]
+                } else {
+                    result.append(NSAttributedString(string: "`", attributes: baseAttrs))
+                }
+            } else {
+                var chunk = ""
+                while !remaining.isEmpty && !remaining.hasPrefix("**") && !remaining.hasPrefix("__") && !remaining.hasPrefix("`") {
+                    chunk.append(remaining.removeFirst())
+                }
+                result.append(NSAttributedString(string: chunk, attributes: baseAttrs))
             }
-            blocks.append(.paragraph(paragraphLines.joined(separator: " ")))
-            orderedIndex = 0
         }
 
-        return blocks
+        return result
     }
-}
 
-private enum MarkdownBlock {
-    case heading(Int, String)
-    case paragraph(String)
-    case listItem(String, ordered: Bool, index: Int)
-    case codeBlock(String)
-    case divider
-}
-
-private extension String {
-    func headingLevel() -> (level: Int, content: String)? {
+    private func parseHeading(_ line: String) -> (level: Int, content: String)? {
         var level = 0
-        var idx = startIndex
-        while idx < endIndex && self[idx] == "#" && level < 6 {
+        var idx = line.startIndex
+        while idx < line.endIndex && line[idx] == "#" && level < 6 {
             level += 1
-            idx = index(after: idx)
+            idx = line.index(after: idx)
         }
-        guard level > 0, idx < endIndex, self[idx] == " " else { return nil }
-        let content = String(self[index(after: idx)...])
-        return (level, content)
+        guard level > 0, idx < line.endIndex, line[idx] == " " else { return nil }
+        return (level, String(line[line.index(after: idx)...]))
     }
 
-    func orderedListItem() -> String? {
-        guard let dotIdx = firstIndex(of: ".") else { return nil }
-        let prefix = self[startIndex..<dotIdx]
+    private func parseOrderedList(_ line: String, at index: Int, in lines: [String]) -> (index: Int, content: String)? {
+        guard let dotIdx = line.firstIndex(of: ".") else { return nil }
+        let prefix = line[line.startIndex..<dotIdx]
         guard prefix.allSatisfy(\.isNumber), !prefix.isEmpty else { return nil }
-        let afterDot = index(after: dotIdx)
-        guard afterDot < endIndex, self[afterDot] == " " else { return nil }
-        return String(self[index(after: afterDot)...])
+        let afterDot = line.index(after: dotIdx)
+        guard afterDot < line.endIndex, line[afterDot] == " " else { return nil }
+        let num = Int(prefix) ?? 1
+        return (num, String(line[line.index(after: afterDot)...]))
     }
 }

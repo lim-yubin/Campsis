@@ -27,8 +27,8 @@ actor MLXChatEngine: ChatEngineProtocol {
     private var currentConversationId: String?
 
     private let instructions = """
-        You are a personal memory assistant. The user saved text clips, screenshots, notes, and files. \
-        They are now chatting with you to recall their saved memories.
+        You are a personal AI assistant with access to the user's saved memories \
+        (text clips, screenshots, notes, files). You also have general knowledge.
 
         IMPORTANT - Output format:
         - You MUST answer in natural language prose with markdown formatting (headings, bullets, bold).
@@ -37,12 +37,14 @@ actor MLXChatEngine: ChatEngineProtocol {
         - Only use code blocks when the user explicitly asks for code snippets or data formats.
 
         Rules:
-        1. Base your answer ONLY on the provided sources (context).
-        2. If ANY source contains even partially relevant information, use it to form an answer. \
-           Prefer giving a best-effort answer over saying you don't know.
-        3. Match the language of the user's question (Korean question → Korean answer).
-        4. Be concise but helpful. Cite source numbers like [1], [2] when referencing specific memories.
-        5. Only say "관련 정보를 찾지 못했습니다." if NONE of the sources are even tangentially related.
+        1. If relevant sources (memories) are provided, base your answer primarily on them. \
+           Cite source numbers like [1], [2] when referencing specific memories.
+        2. If no relevant sources are found, answer using your general knowledge. \
+           In this case, start your answer with "💡 메모리에 관련 정보가 없어 일반 지식으로 답변합니다." on its own line.
+        3. If sources are partially relevant, combine memory-based info with general knowledge. \
+           Clearly distinguish which parts come from memories vs general knowledge.
+        4. Match the language of the user's question (Korean question → Korean answer).
+        5. Be concise but helpful.
         6. You can engage in follow-up conversation. If the user asks a clarifying question about a \
            previous answer, use the conversation context plus any new sources.
         """
@@ -71,12 +73,12 @@ actor MLXChatEngine: ChatEngineProtocol {
         let formatReminder = "\n\nRemember: Answer in natural language with markdown. Do NOT output JSON."
         let prompt: String
         if results.isEmpty {
-            prompt = "Question: \(query)\n\n(No relevant sources found in memory.)" + formatReminder
+            prompt = "Question: \(query)\n\nNo relevant memories found. Answer using your general knowledge." + formatReminder
         } else {
             prompt = """
                 Question: \(query)
 
-                Sources:
+                Sources from user's memory:
                 \(contextBlock)
                 """ + formatReminder
         }

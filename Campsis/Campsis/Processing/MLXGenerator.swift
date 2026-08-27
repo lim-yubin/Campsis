@@ -74,7 +74,7 @@ private struct TokenizerBridge: @unchecked Sendable, MLXLMCommon.Tokenizer {
     ) throws -> [Int] {
         let bridgedMessages = messages.map { $0 as [String: Any] }
         let bridgedTools = tools?.map { $0 as [String: Any] }
-        let bridgedContext = additionalContext as? [String: Any]
+        let bridgedContext = additionalContext.map { $0 as [String: Any] }
         do {
             return try upstream.applyChatTemplate(
                 messages: bridgedMessages,

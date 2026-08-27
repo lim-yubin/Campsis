@@ -26,11 +26,17 @@ struct ShortcutSettingsView: View {
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .quickMemory)
                 }
+
+                HStack {
+                    Text("Open Memory")
+                    Spacer()
+                    KeyboardShortcuts.Recorder(for: .openMemory)
+                }
             }
 
             Section {
                 Button("Restore Defaults") {
-                    KeyboardShortcuts.reset(.rememberContext, .quickMemory)
+                    KeyboardShortcuts.reset(.rememberContext, .quickMemory, .openMemory)
                 }
             }
         }

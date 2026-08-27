@@ -23,14 +23,26 @@ final class CaptureCoordinator {
         KeyboardShortcuts.onKeyUp(for: .quickMemory) { [weak self] in
             self?.handleQuickMemory()
         }
+        KeyboardShortcuts.onKeyUp(for: .openMemory) {
+            Task { @MainActor in
+                if let window = NSApp.windows.first(where: {
+                    $0.title.contains("Campsis Memory") || $0.identifier?.rawValue.contains("main") == true
+                }) {
+                    NSApp.activate(ignoringOtherApps: true)
+                    window.makeKeyAndOrderFront(nil)
+                } else {
+                    NotificationCenter.default.post(name: .openMemoryWindow, object: nil)
+                }
+            }
+        }
     }
 
     private func handleRememberContext() {
         NSLog("[Campsis] handleRememberContext triggered")
-        Task {
+        Task { @MainActor in
             if PermissionManager.accessibilityStatus == .granted {
                 if let text = await SelectedTextReader.read() {
-                    await showCapturePopup(with: .text(text))
+                    showCapturePopup(with: .text(text))
                     return
                 }
             } else if PermissionManager.accessibilityStatus == .denied {
@@ -39,7 +51,7 @@ final class CaptureCoordinator {
 
             if PermissionManager.screenRecordingStatus == .granted {
                 if let shot = await ScreenshotCapture.capture() {
-                    await showCapturePopup(with: .screenshot(shot))
+                    showCapturePopup(with: .screenshot(shot))
                     return
                 }
             } else {

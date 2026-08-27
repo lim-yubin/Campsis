@@ -33,6 +33,7 @@ final class AppState {
     let messageRepository: MessageRepository
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
+    var pendingConversations: Set<String> = []
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
 
@@ -44,6 +45,77 @@ final class AppState {
         self.embeddingService = embeddingService
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
+    }
+
+    func generateResponse(for query: String, conversationId: String) {
+        pendingConversations.insert(conversationId)
+
+        Task.detached { [weak self] in
+            guard let self else { return }
+            let appState = await MainActor.run { self }
+            let chatEngine = await MainActor.run { appState.chatEngine }
+            let messageRepository = await MainActor.run { appState.messageRepository }
+            let sourceRepository = await MainActor.run { appState.sourceRepository }
+            let conversationRepository = await MainActor.run { appState.conversationRepository }
+
+            var content: String
+            var sourceIds: [String] = []
+
+            guard let chatEngine else {
+                content = "AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요."
+                await self.saveAndNotify(content: content, sourceIds: sourceIds,
+                                         conversationId: conversationId, query: query,
+                                         messageRepository: messageRepository,
+                                         sourceRepository: sourceRepository,
+                                         conversationRepository: conversationRepository)
+                return
+            }
+
+            do {
+                let response = try await chatEngine.send(query: query, conversationId: conversationId)
+                content = response.answer
+                sourceIds = response.sources.map { $0.source.id }
+            } catch {
+                content = "오류가 발생했습니다: \(error.localizedDescription)"
+            }
+
+            await self.saveAndNotify(content: content, sourceIds: sourceIds,
+                                     conversationId: conversationId, query: query,
+                                     messageRepository: messageRepository,
+                                     sourceRepository: sourceRepository,
+                                     conversationRepository: conversationRepository)
+        }
+    }
+
+    private func saveAndNotify(content: String, sourceIds: [String],
+                               conversationId: String, query: String,
+                               messageRepository: MessageRepository,
+                               sourceRepository: SourceRepository,
+                               conversationRepository: ConversationRepository) async {
+        var msg = Message(conversationId: conversationId, role: .assistant, content: content, sourceIds: sourceIds)
+        do {
+            try messageRepository.save(&msg)
+        } catch {
+            NSLog("[Campsis] Failed to save assistant message: \(error)")
+        }
+
+        let messageCount = (try? messageRepository.fetchAll(conversationId: conversationId).count) ?? 0
+        if messageCount <= 2 {
+            let title = String(query.prefix(40))
+            if var conv = try? conversationRepository.fetch(id: conversationId) {
+                conv.title = title
+                try? conversationRepository.update(&conv)
+            }
+        }
+
+        await MainActor.run {
+            pendingConversations.remove(conversationId)
+            NotificationCenter.default.post(
+                name: .chatResponseCompleted,
+                object: nil,
+                userInfo: ["conversationId": conversationId]
+            )
+        }
     }
 }
 

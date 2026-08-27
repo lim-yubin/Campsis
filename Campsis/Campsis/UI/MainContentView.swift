@@ -76,13 +76,22 @@ struct MainContentView: View {
     }
 
     private func conversationRow(_ conversation: Conversation) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(conversation.title)
-                .font(.subheadline)
-                .lineLimit(1)
-            Text(relativeDate(conversation.updatedAt))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conversation.title)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text(relativeDate(conversation.updatedAt))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            if appState.pendingConversations.contains(conversation.id) {
+                ProgressView()
+                    .controlSize(.small)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -204,14 +213,17 @@ struct MainContentView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) {
+        let repository = appState.sourceRepository
+        let processingQueue = appState.processingQueueRef as? ProcessingQueue
+
         for provider in providers {
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { data, _ in
                 guard let data = data as? Data,
                       let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
 
                 let importer = FileImporter(
-                    repository: appState.sourceRepository,
-                    processingQueue: appState.processingQueueRef as? ProcessingQueue
+                    repository: repository,
+                    processingQueue: processingQueue
                 )
 
                 Task {

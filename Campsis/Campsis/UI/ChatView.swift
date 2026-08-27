@@ -19,7 +19,18 @@ struct ChatView: View {
                 sendMessage()
             }
         }
-        .task { loadMessages() }
+        .onAppear { refreshState() }
+        .onReceive(NotificationCenter.default.publisher(for: .chatResponseCompleted)) { notification in
+            guard let convId = notification.userInfo?["conversationId"] as? String,
+                  convId == conversationId else { return }
+            loadMessages()
+            isLoading = false
+        }
+    }
+
+    private func refreshState() {
+        loadMessages()
+        isLoading = appState.pendingConversations.contains(conversationId)
     }
 
     private var messageList: some View {
@@ -99,57 +110,6 @@ struct ChatView: View {
         inputText = ""
         isLoading = true
 
-        Task {
-            await generateResponse(for: text, userMessageId: userMessage.id)
-        }
-    }
-
-    private func generateResponse(for query: String, userMessageId: String) async {
-        guard let chatEngine = appState.chatEngine else {
-            await MainActor.run {
-                appendAssistantMessage("AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요.", sourceIds: [])
-                isLoading = false
-            }
-            return
-        }
-
-        do {
-            let response = try await chatEngine.send(query: query, conversationId: conversationId)
-            let sourceIds = response.sources.map { $0.source.id }
-
-            await MainActor.run {
-                appendAssistantMessage(response.answer, sourceIds: sourceIds)
-                updateConversationTitle(query: query)
-                isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                appendAssistantMessage("오류가 발생했습니다: \(error.localizedDescription)", sourceIds: [])
-                isLoading = false
-            }
-        }
-    }
-
-    private func appendAssistantMessage(_ content: String, sourceIds: [String]) {
-        var msg = Message(conversationId: conversationId, role: .assistant, content: content, sourceIds: sourceIds)
-        do {
-            try appState.messageRepository.save(&msg)
-        } catch {
-            NSLog("[Campsis] Failed to save assistant message: \(error)")
-        }
-        messages.append(msg)
-
-        let sources = sourceIds.compactMap { try? appState.sourceRepository.fetch(id: $0) }
-        sourceCache[msg.id] = sources
-    }
-
-    private func updateConversationTitle(query: String) {
-        if messages.count <= 2 {
-            let title = String(query.prefix(40))
-            if var conv = try? appState.conversationRepository.fetch(id: conversationId) {
-                conv.title = title
-                try? appState.conversationRepository.update(&conv)
-            }
-        }
+        appState.generateResponse(for: text, conversationId: conversationId)
     }
 }

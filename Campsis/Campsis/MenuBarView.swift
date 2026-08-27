@@ -12,8 +12,7 @@ struct MenuBarView: View {
         Divider()
 
         Button("Open Memory") {
-            openWindow(id: "main")
-            NSApp.activate(ignoringOtherApps: true)
+            openMemoryWindow()
         }
         .keyboardShortcut("o", modifiers: [.option])
 
@@ -27,5 +26,13 @@ struct MenuBarView: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
+        .onReceive(NotificationCenter.default.publisher(for: .openMemoryWindow)) { _ in
+            openMemoryWindow()
+        }
+    }
+
+    private func openMemoryWindow() {
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

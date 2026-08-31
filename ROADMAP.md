@@ -19,8 +19,9 @@ Campsis는 6단계에 걸쳐 만들어집니다.
 | **4.5. 대화형 UI** | ChatGPT 스타일로 기억과 대화        | 비서와 채팅하기               |
 | **5. 실사용 검증** | 직접 써보면서 다듬기                | 시범 운영                     |
 | **6. 배포**        | 브라우저 다운로드 + 웹 대시보드로 출시 | 웹사이트에서 직접 배포 (App Store 미배포) |
+| **7. 하이브리드 AI** | 클라우드 생성(Luna) + MD 지식베이스 + 비전 이해 | 무거운 생각만 클라우드에 맡기기 |
 
-**현재 위치:** Phase 7 진행중 — 클라우드 생성(GPT-5.6 Luna) 통합 + MD 지식베이스 도입 (품질 개선 & 하드웨어 부담 완화)
+**현재 위치:** Phase 7 완료 — 클라우드 생성(GPT-5.6 Luna) + MD 지식베이스(진실원+파생벡터) + Luna 비전 통합 이해. 다음: Phase 5 도그푸딩 / Phase 6 인프라(계정·결제·대시보드) 병행
 
 **출시 전략(2026-08-31 확정):** MVP 점진 출시가 아니라 **핵심 기능 완성 후 공개 출시**. 스코프 = Phase 7(Luna+MD) + BYOK/Free/Pro + 서버·결제·대시보드. Pro+(iCloud 동기화·내보내기·팀 공유)는 **출시 후**로 분리. 공개 출시 전 **클로즈드 베타(20~30명)** 필수.
 
@@ -173,7 +174,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 ---
 
-## Phase 7 — 클라우드 생성(Luna) + MD 지식베이스 `진행중`
+## Phase 7 — 클라우드 생성(Luna) + MD 지식베이스 `완료`
 
 **배경:** 로컬 생성 모델(Qwen3-4B)은 품질 한계 + 소비자 하드웨어(RAM/용량) 부담이 큼. **무거운 "생성"만 GPT-5.6 Luna(클라우드)로 이전**하고, 임베딩(bge-m3)·검색·원본 저장은 로컬 유지하는 하이브리드로 전환한다. 저장은 **MD(사람이 읽고 편집 가능한 진실원) + 벡터(파생 인덱스)** 이중 구조로 재정의한다.
 
@@ -190,9 +191,9 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 | 7.4.1 | AICredentials 계층 키 리졸버                       | 완료     | 키체인(BYOK) → (DEBUG).env → (미래)프록시. 릴리즈 컴파일 제외 |
 | 7.5 | MD 진실원 저장 계층                                | 완료     | 2026-09-01. Source에 markdown_path/status/updated_at, v5 마이그레이션, AppPaths/markdowns, LunaMarkdownGenerator, SourceDetailView 정리본/원본 세그먼트 |
 | 7.6 | MD 백그라운드 생성 (지연 처리)                     | 완료     | 2026-09-01. 캡처→OCR+임베딩 즉시 완료, generateMissingMarkdown가 온라인+Luna 구성 시 백그라운드 보강 |
-| 7.7 | OCRProcessor 프로토콜화 + Luna 비전 이해            | 대기     | AppleVision(로컬) 기본 + CloudVisionOCR(Luna) 선택, Windows 확장 대비 |
+| 7.7 | OCRProcessor 프로토콜화 + Luna 비전 이해            | 완료     | 2026-09-01. OCRProcessing 프로토콜 + AppleVisionOCR(로컬 기본). 이미지 "이해"는 7.9 Luna 비전이 담당(별도 CloudVisionOCR 불필요) |
 | 7.8 | MD 수정 시 재임베딩 (bge-m3)                        | 완료     | 2026-09-01. SearchableTextBuilder가 MD 우선, MD 생성/편집 시 해당 항목만 delete+재임베딩 (source당 벡터 1개 유지) |
-| 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 대기     | 단일 호출로 OCR+이해+맥락+태깅 → MD 생성                    |
+| 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 완료     | 2026-09-01. LunaMarkdownGenerator가 스크린샷/이미지 파일을 비전 입력(data URL)으로 첨부 → 단일 호출로 OCR+이해+맥락+태깅→MD. 로컬 OCR은 즉시검색용으로 유지 |
 
 **결정:** 생성=Luna(클라우드), 임베딩=bge-m3(로컬 유지), OCR=로컬 기본+Luna 선택, MD 생성=백그라운드/지연. (상세 §28 D36~)
 
@@ -241,6 +242,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-01 | Phase 7 완료(7.7·7.9). OCRProcessing 프로토콜 + AppleVisionOCR로 OCR 추상화(Windows 확장 대비), LunaMarkdownGenerator가 스크린샷/이미지 파일을 비전 입력(base64 data URL)으로 첨부 → 단일 Luna 호출로 OCR+이해+맥락+태깅→MD(7.9). 로컬 Apple Vision OCR은 캡처 즉시 검색용으로 유지. Phase 7 전체 완료 → 상태 `완료`, 현재 위치 갱신 |
 | 2026-09-01 | Phase 7.8 완료: MD 수정 시 재임베딩. SearchableTextBuilder가 MD(진실원) 있으면 MD 기준으로 검색 텍스트 구성, MD 자동생성(Luna) 및 수동편집(⌘S) 시 해당 소스만 delete→재임베딩(source당 벡터 1개 유지). 편집한 정리본이 즉시 의미검색에 반영됨. ProcessingQueue.reembedSource(id:) 추가 |
 | 2026-09-01 | UX: 사이드바 계층화(메모리/채팅 섹션 분리) + 메모리 상세 흐름 개편. 상세를 모달(sheet)→인라인 푸시(NavigationStack)로 전환, 정리본(MD) 우선 표시 + 툴바 "편집/직접 작성"(⌘S 저장)으로 MD 직접 편집 가능, 원본은 세그먼트로 확인. MD 생성 속도 개선: LunaMarkdownGenerator에 reasoning_effort=low. Source에 Hashable 추가(navigationDestination). 주의: MD 편집 저장은 파일·메타데이터만 갱신하며 검색 재임베딩은 7.8에서 처리 |
 | 2026-09-01 | Phase 7.5·7.6 완료: MD(진실원) 저장 계층 + 백그라운드 생성. Source에 markdown_path/markdown_status/markdown_updated_at 추가(v5-markdown 마이그레이션), AppPaths.markdowns 디렉터리, MarkdownGenerator 프로토콜 + LunaMarkdownGenerator(gpt-5.6-luna), ProcessingQueue.generateMissingMarkdown(캡처 즉시 OCR+임베딩 → MD는 온라인+Luna 구성 시 지연 보강), SourceDetailView "정리본(MD)/원본" 세그먼트로 원본 소스 즉시 확인. provider=local이면 MD 생성 건너뜀. 7.8(MD 편집 재임베딩)은 대기 |

@@ -2032,7 +2032,7 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D38  | BYOK(사용자 OpenAI 키) 우선, 제공 모델은 Luna 단일    | 초기엔 서버 없이 앱이 OpenAI 직접 호출(운영자 원가 0). 키는 Keychain 저장, 앱 번들에 미포함. 추후 사용자 키 입력 + 모델 선택 옵션. 운영자 부담(방식1)은 프록시 서버 필요 → 유료화 시점에 검토. **→ D43~D46에서 3-티어(BYOK/Free/Pro) + Supabase 프록시 + 웹 대시보드 배포로 구체화** |
 | D39  | 저장 구조 재정의: MD(진실원) + 벡터(파생) 이중 저장 (Phase 7) | Luna로 요약·구조화한 **편집 가능한 .md**를 진실원으로 저장, 벡터는 MD에서 파생된 검색 인덱스. MD 수정 시 해당 항목만 재임베딩. Karpathy식 LLM wiki/MCP 확장 대비 (§2.3 원본/해석 분리 원칙 강화) |
 | D40  | MD 생성은 백그라운드/지연 처리                        | 캡처 즉시 로컬 OCR 텍스트로 저장·임베딩해 검색은 바로 가능. Luna MD 생성은 온라인 시 `ProcessingQueue`에서 보강. 캡처 즉각성·오프라인 캡처 보장 |
-| D41  | OCR을 프로토콜로 추상화 (Windows 확장 대비)           | `OCRProcessor` 프로토콜 + AppleVisionOCR(macOS 로컬 기본) / CloudVisionOCR(Luna 이미지입력, 선택적). 이미지 이해·맥락 해석은 Luna 이미지입력으로. Apple Vision 하드코딩 제거 |
+| D41  | OCR을 프로토콜로 추상화 (Windows 확장 대비)           | `OCRProcessing` 프로토콜 + AppleVisionOCR(macOS 로컬 기본). 이미지 이해·맥락 해석은 Luna 이미지입력으로. Apple Vision 하드코딩 제거. **구현(2026-09-01, 7.7/7.9):** 별도 `CloudVisionOCR` 대신 `LunaMarkdownGenerator`가 이미지를 비전 입력(base64 data URL)으로 직접 첨부 → 단일 호출로 OCR+이해+태깅→MD. 로컬 Apple Vision OCR은 캡처 즉시 검색용으로 병행 유지 |
 | D42  | MVP 파일 지원 범위 축소: PDF/MD/이미지                | docx·xlsx는 파서 공수 대비 우선순위 낮아 보류, 음성(STT)도 보류. §5.5/§16 대비 축소 |
 | D43  | 요금제 3-티어: BYOK / Free / Pro (D38 확장)           | 키 위치로 플랜 구분. **BYOK**=사용자 키, 앱이 직접 OpenAI 호출(서버 미경유, 로그인 불필요). **Free**=제작자 키 + 사용량 쿼터 + 제한 모델(프록시 경유, 로그인 필요). **Pro**=제작자 키 + 고급 모델(Luna) 구독. Free·Pro는 제작자 키를 클라이언트에 절대 노출하지 않음 → 프록시 필수 |
 | D44  | 키 해석 계층화: `AICredentials` 리졸버 (구현)         | 우선순위 ①사용자 Keychain(BYOK) ②(DEBUG 전용)로컬 `.env` ③(미래)프록시 서버. `.env` 로더는 `#if DEBUG`로 릴리즈 빌드에서 컴파일 제외 → 제작자 키가 배포 바이너리에 절대 포함되지 않음. `AICredentials.swift` |

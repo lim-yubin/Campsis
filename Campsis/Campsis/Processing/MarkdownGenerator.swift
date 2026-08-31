@@ -47,6 +47,8 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
         5. Preserve important details (names, numbers, URLs, code).
         6. Match the language of the source (Korean source → Korean note).
         7. End with a short "태그:" line listing 2-5 relevant keywords.
+        8. If an image is attached, read ALL visible text in it and interpret its \
+           meaningful content (UI, chart, document, photo) faithfully — this replaces separate OCR.
         """
 
     init(apiKey: String, model: String = "gpt-5.6-luna") {
@@ -56,14 +58,52 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
 
     func generate(from source: Source) async throws -> String {
         let input = Self.buildInput(from: source, limit: maxInputChars)
-        guard !input.isEmpty else { throw MarkdownGeneratorError.emptyInput }
+        let imageDataURL = Self.imageDataURL(for: source)
+        guard !input.isEmpty || imageDataURL != nil else { throw MarkdownGeneratorError.emptyInput }
 
-        let messages: [[String: String]] = [
+        // 이미지가 있으면 Luna 비전에 직접 입력한다 (7.9): 단일 호출로 OCR+이해+맥락+태깅.
+        let userContent: Any
+        if let imageDataURL {
+            var parts: [[String: Any]] = []
+            if !input.isEmpty {
+                parts.append(["type": "text", "text": input])
+            }
+            parts.append(["type": "image_url", "image_url": ["url": imageDataURL]])
+            userContent = parts
+        } else {
+            userContent = input
+        }
+
+        let messages: [[String: Any]] = [
             ["role": "system", "content": instructions],
-            ["role": "user", "content": input],
+            ["role": "user", "content": userContent],
         ]
         let raw = try await completeChat(messages: messages)
         return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 소스에 이미지(스크린샷/이미지 파일)가 있으면 base64 data URL로 인코딩한다.
+    private nonisolated static func imageDataURL(for source: Source) -> String? {
+        let relativePath: String?
+        switch source.type {
+        case .screenshot: relativePath = source.screenshotPath
+        case .file: relativePath = source.filePath
+        default: relativePath = nil
+        }
+        guard let rel = relativePath else { return nil }
+
+        let mime: String
+        switch (rel as NSString).pathExtension.lowercased() {
+        case "png": mime = "image/png"
+        case "jpg", "jpeg": mime = "image/jpeg"
+        case "gif": mime = "image/gif"
+        case "webp": mime = "image/webp"
+        default: return nil  // pdf/txt/md 등은 이미지가 아님
+        }
+
+        let url = AppPaths.absoluteURL(from: rel)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return "data:\(mime);base64,\(data.base64EncodedString())"
     }
 
     /// 소스의 텍스트 재료 + 메타데이터를 하나의 입력으로 조립한다.
@@ -100,7 +140,7 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
 
     // MARK: - Networking (LunaChatEngine과 동일 패턴)
 
-    private func completeChat(messages: [[String: String]]) async throws -> String {
+    private func completeChat(messages: [[String: Any]]) async throws -> String {
         // MD 구조화는 무거운 추론이 필요 없다. reasoning.effort를 낮춰 지연을 크게 줄인다.
         let body: [String: Any] = [
             "model": model,

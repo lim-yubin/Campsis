@@ -18,9 +18,49 @@ struct CampsisApp: App {
         }
         .defaultSize(width: 900, height: 640)
         .defaultLaunchBehavior(.presented)
+        .commands { CampsisCommands() }
 
         Settings {
             SettingsView()
+        }
+    }
+}
+
+/// Dock 앱(.regular)에서 화면 상단 앱 메뉴바에 노출되는 명령. 전역 단축키를 몰라도 발견 가능.
+struct CampsisCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("새 채팅") {
+                openMain()
+                postDelayed(.requestNewChat)
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button("빠른 메모") {
+                NotificationCenter.default.post(name: .triggerQuickMemory, object: nil)
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("메모리 열기") {
+                openMain()
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+        }
+    }
+
+    private func openMain() {
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// 창이 방금 열렸을 수 있으므로, 뷰가 알림을 구독할 시간을 준 뒤 전송한다.
+    private func postDelayed(_ name: Notification.Name) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NotificationCenter.default.post(name: name, object: nil)
         }
     }
 }
@@ -214,8 +254,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             NotificationCenter.default.post(name: .openMemoryWindow, object: nil)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
         }
         return true
+    }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(dockMenuItem("빠른 메모", #selector(dockQuickMemory)))
+        menu.addItem(dockMenuItem("새 채팅", #selector(dockNewChat)))
+        menu.addItem(dockMenuItem("메모리 열기", #selector(dockOpenMemory)))
+        return menu
+    }
+
+    private func dockMenuItem(_ title: String, _ action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    @objc private func dockQuickMemory() {
+        NotificationCenter.default.post(name: .triggerQuickMemory, object: nil)
+    }
+
+    @objc private func dockOpenMemory() {
+        NotificationCenter.default.post(name: .openMemoryWindow, object: nil)
+    }
+
+    @objc private func dockNewChat() {
+        NotificationCenter.default.post(name: .openMemoryWindow, object: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NotificationCenter.default.post(name: .requestNewChat, object: nil)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

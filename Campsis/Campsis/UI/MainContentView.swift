@@ -86,6 +86,62 @@ struct MainContentView: View {
                 }
             }
             .listStyle(.sidebar)
+
+            sidebarFooter
+        }
+    }
+
+    private var sidebarFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                statusIndicator
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("설정")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch appState.modelStatus {
+        case .downloading(let fraction):
+            HStack(spacing: 6) {
+                ProgressView(value: fraction)
+                    .controlSize(.small)
+                    .frame(width: 54)
+                Text("\(Int(fraction * 100))%")
+            }
+        case .loading:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("모델 로딩 중…")
+            }
+        case .idle:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("AI 준비 중…")
+            }
+        case .ready:
+            HStack(spacing: 6) {
+                Circle().fill(.green).frame(width: 7, height: 7)
+                Text("AI 준비됨")
+            }
+        case .failed:
+            HStack(spacing: 6) {
+                Circle().fill(.red).frame(width: 7, height: 7)
+                Text("AI 사용 불가")
+            }
         }
     }
 
@@ -125,7 +181,7 @@ struct MainContentView: View {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 56))
                     .foregroundStyle(.tertiary)
-                Text("New Chat을 시작하거나\n기존 대화를 선택하세요")
+                Text("새 채팅을 시작하거나\n기존 대화를 선택하세요")
                     .font(.title3)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)

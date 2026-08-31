@@ -23,9 +23,28 @@ struct SourceDetailView: View {
         .frame(minWidth: 500, minHeight: 400)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Close") { dismiss() }
+                Button("닫기") { dismiss() }
+            }
+            if let url = openableURL {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("원문 열기", systemImage: "arrow.up.right.square")
+                    }
+                }
             }
         }
+    }
+
+    private var openableURL: URL? {
+        if let urlString = source.url, let url = URL(string: urlString) {
+            return url
+        }
+        if source.type == .file, let path = source.filePath {
+            return AppPaths.absoluteURL(from: path)
+        }
+        return nil
     }
 
     private var header: some View {
@@ -62,7 +81,7 @@ struct SourceDetailView: View {
         switch source.type {
         case .selectedText, .note, .file:
             if let content = source.content {
-                GroupBox("Content") {
+                GroupBox("내용") {
                     VStack(alignment: .leading, spacing: 8) {
                         if showFullContent {
                             ScrollView {
@@ -82,7 +101,7 @@ struct SourceDetailView: View {
 
                         HStack {
                             if content.count > Self.contentPreviewLimit {
-                                Button(showFullContent ? "Show less" : "Show all (\(content.count) chars)") {
+                                Button(showFullContent ? "간략히 보기" : "전체 보기 (\(content.count)자)") {
                                     showFullContent.toggle()
                                 }
                                 .font(.caption)
@@ -91,7 +110,7 @@ struct SourceDetailView: View {
 
                             if source.type == .file, let path = source.filePath {
                                 Spacer()
-                                Button("Open Original") {
+                                Button("원본 열기") {
                                     let url = AppPaths.absoluteURL(from: path)
                                     NSWorkspace.shared.open(url)
                                 }
@@ -106,7 +125,7 @@ struct SourceDetailView: View {
             if let path = source.screenshotPath {
                 let url = AppPaths.absoluteURL(from: path)
                 if let nsImage = NSImage(contentsOf: url) {
-                    GroupBox("Screenshot") {
+                    GroupBox("스크린샷") {
                         Image(nsImage: nsImage)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -115,7 +134,7 @@ struct SourceDetailView: View {
                 }
             }
             if let ocrText = source.ocrText, !ocrText.isEmpty {
-                GroupBox("OCR Text") {
+                GroupBox("OCR 텍스트") {
                     Text(ocrText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -123,7 +142,7 @@ struct SourceDetailView: View {
             }
         case .voice:
             if let transcript = source.transcript {
-                GroupBox("Transcript") {
+                GroupBox("전사") {
                     Text(transcript)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -132,7 +151,7 @@ struct SourceDetailView: View {
         }
 
         if let note = source.userNote, !note.isEmpty {
-            GroupBox("User Note") {
+            GroupBox("메모") {
                 Text(note)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,21 +160,21 @@ struct SourceDetailView: View {
     }
 
     private func summarySection(_ summary: String) -> some View {
-        GroupBox("AI Summary") {
+        GroupBox("AI 요약") {
             Text(summary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private func topicsSection(_ topics: [String]) -> some View {
-        GroupBox("Topics") {
+        GroupBox("주제") {
             FlowLayout(spacing: 6) {
                 ForEach(topics, id: \.self) { topic in
                     Text(topic)
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(.blue.opacity(0.1), in: Capsule())
+                        .background(Color.tagBackground, in: Capsule())
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,11 +182,11 @@ struct SourceDetailView: View {
     }
 
     private var metadataSection: some View {
-        GroupBox("Metadata") {
+        GroupBox("메타데이터") {
             Grid(alignment: .leading, verticalSpacing: 6) {
                 if let app = source.application {
                     GridRow {
-                        Text("Application").foregroundStyle(.secondary)
+                        Text("앱").foregroundStyle(.secondary)
                         Text(app)
                     }
                 }
@@ -179,7 +198,7 @@ struct SourceDetailView: View {
                     }
                 }
                 GridRow {
-                    Text("Status").foregroundStyle(.secondary)
+                    Text("상태").foregroundStyle(.secondary)
                     Text(source.processingStatus.rawValue)
                 }
             }

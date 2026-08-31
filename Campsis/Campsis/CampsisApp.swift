@@ -9,6 +9,7 @@ struct CampsisApp: App {
     var body: some Scene {
         MenuBarExtra("Campsis", systemImage: "brain.head.profile") {
             MenuBarView()
+                .environment(appDelegate.appState)
         }
 
         Window("Campsis Memory", id: "main") {
@@ -24,6 +25,27 @@ struct CampsisApp: App {
     }
 }
 
+enum ModelStatus: Equatable {
+    case idle
+    case downloading(Double)
+    case loading
+    case ready
+    case failed
+
+    var label: String {
+        switch self {
+        case .idle: return "AI 준비 중…"
+        case .downloading(let fraction):
+            return "AI 모델 다운로드 중… \(Int(fraction * 100))%"
+        case .loading: return "AI 모델 로딩 중…"
+        case .ready: return "AI 준비됨"
+        case .failed: return "AI 사용 불가"
+        }
+    }
+
+    var isReady: Bool { self == .ready }
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -35,6 +57,9 @@ final class AppState {
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
     var pendingConversations: Set<String> = []
+    var modelStatus: ModelStatus = .idle
+    var streamingText: [String: String] = [:]
+    private var generationTasks: [String: Task<Void, Never>] = [:]
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
 
@@ -50,8 +75,9 @@ final class AppState {
 
     func generateResponse(for query: String, conversationId: String) {
         pendingConversations.insert(conversationId)
+        streamingText[conversationId] = ""
 
-        Task.detached { [weak self] in
+        let task = Task.detached { [weak self] in
             guard let self else { return }
             let appState = await MainActor.run { self }
             let chatEngine = await MainActor.run { appState.chatEngine }
@@ -59,25 +85,36 @@ final class AppState {
             let sourceRepository = await MainActor.run { appState.sourceRepository }
             let conversationRepository = await MainActor.run { appState.conversationRepository }
 
-            var content: String
-            var sourceIds: [String] = []
-
             guard let chatEngine else {
-                content = "AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요."
-                await self.saveAndNotify(content: content, sourceIds: sourceIds,
-                                         conversationId: conversationId, query: query,
+                await self.saveAndNotify(content: "AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요.",
+                                         sourceIds: [], conversationId: conversationId, query: query,
                                          messageRepository: messageRepository,
                                          sourceRepository: sourceRepository,
                                          conversationRepository: conversationRepository)
                 return
             }
 
+            var content = ""
+            var sourceIds: [String] = []
+
             do {
-                let response = try await chatEngine.send(query: query, conversationId: conversationId)
+                let response = try await chatEngine.sendStream(query: query, conversationId: conversationId) { delta in
+                    Task { @MainActor in
+                        appState.streamingText[conversationId, default: ""] += delta
+                    }
+                }
                 content = response.answer
                 sourceIds = response.sources.map { $0.source.id }
+            } catch is CancellationError {
+                let partial = await MainActor.run { appState.streamingText[conversationId] ?? "" }
+                content = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+                if content.isEmpty {
+                    await self.finishGeneration(conversationId: conversationId)
+                    return
+                }
+                content += "\n\n_(중지됨)_"
             } catch {
-                content = "오류가 발생했습니다: \(error.localizedDescription)"
+                content = Self.friendlyErrorMessage(error)
             }
 
             await self.saveAndNotify(content: content, sourceIds: sourceIds,
@@ -86,6 +123,32 @@ final class AppState {
                                      sourceRepository: sourceRepository,
                                      conversationRepository: conversationRepository)
         }
+        generationTasks[conversationId] = task
+    }
+
+    func stopGeneration(conversationId: String) {
+        generationTasks[conversationId]?.cancel()
+    }
+
+    nonisolated static let contextErrorPrefix = "⚠️ 대화가 너무 길어졌어요."
+
+    nonisolated static func friendlyErrorMessage(_ error: Error) -> String {
+        let desc = error.localizedDescription.lowercased()
+        if desc.contains("context") || desc.contains("window") || desc.contains("memory") {
+            return contextErrorPrefix + " 아래 '새 채팅 시작'을 눌러 새 대화를 시작해 주세요."
+        }
+        return "⚠️ 답변 생성 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.\n(\(error.localizedDescription))"
+    }
+
+    private func finishGeneration(conversationId: String) {
+        pendingConversations.remove(conversationId)
+        streamingText[conversationId] = nil
+        generationTasks[conversationId] = nil
+        NotificationCenter.default.post(
+            name: .chatResponseCompleted,
+            object: nil,
+            userInfo: ["conversationId": conversationId]
+        )
     }
 
     private func saveAndNotify(content: String, sourceIds: [String],
@@ -101,8 +164,13 @@ final class AppState {
         }
 
         let messageCount = (try? messageRepository.fetchAll(conversationId: conversationId).count) ?? 0
+        let isErrorContent = content.hasPrefix("⚠️") || content.hasPrefix("AI 모델을 로딩")
         if messageCount <= 2 {
-            let title = String(query.prefix(40))
+            var title = String(query.prefix(40))
+            if !isErrorContent, let engine = chatEngine,
+               let suggested = await engine.suggestTitle(for: query, answer: content) {
+                title = suggested
+            }
             if var conv = try? conversationRepository.fetch(id: conversationId) {
                 conv.title = title
                 try? conversationRepository.update(&conv)
@@ -111,6 +179,8 @@ final class AppState {
 
         await MainActor.run {
             pendingConversations.remove(conversationId)
+            streamingText[conversationId] = nil
+            generationTasks[conversationId] = nil
             NotificationCenter.default.post(
                 name: .chatResponseCompleted,
                 object: nil,
@@ -163,18 +233,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func initializeModels(repo: SourceRepository, embedRepo: EmbeddingRepository, embedService: EmbeddingService) async {
+        let state = appState
+        await MainActor.run { state.modelStatus = .idle }
+
         let mlxGenerator = MLXGenerator()
         var generator: TextGenerator = mlxGenerator
 
         var mlxContainer: ModelContainer?
         do {
-            try await mlxGenerator.preload()
+            try await mlxGenerator.preload(onProgress: { fraction in
+                Task { @MainActor in
+                    state.modelStatus = fraction < 1.0 ? .downloading(fraction) : .loading
+                }
+            })
             mlxContainer = await mlxGenerator.getLoadedContainer()
+            await MainActor.run { state.modelStatus = .ready }
             NSLog("[Campsis] MLX model loaded — using Qwen3-4B for analysis and chat")
         } catch {
             NSLog("[Campsis] MLX model unavailable (\(error.localizedDescription)), falling back to Apple FM")
             if #available(macOS 26.0, *) {
                 generator = AppleFMGenerator()
+                await MainActor.run { state.modelStatus = .ready }
+            } else {
+                await MainActor.run { state.modelStatus = .failed }
             }
         }
 

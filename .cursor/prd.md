@@ -2019,6 +2019,11 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D28  | ~~RAG Answer에 Apple FM 사용 (Phase 3.4)~~ → D30으로 교체 | ~~Context 8192 토큰 내에서 충분~~. Apple FM의 작은 컨텍스트 + 보수적 가드레일 문제로 MLX 교체 결정                                          |
 | D29  | 메인 창 SwiftUI Window scene + @Observable AppState   | ObservableObject의 `@available` 프로퍼티 제약으로 @Observable 채택                                                                         |
 | D30  | LLM을 Qwen3-4B-4bit (MLX) 기반으로 교체              | mlx-swift-lm 3.31.4, ChatSession API. 128K 컨텍스트. Apple FM 폴백 유지. TextGenerator 프로토콜 + ChatEngineProtocol로 추상화               |
+| D31  | Chat 답변을 스트리밍으로 전환 (Phase 5.5)            | `ChatSession.streamResponse` 사용, AppState에 대화별 스트리밍 버퍼 + Task 취소로 "중지" 지원. thinking(`<think>…</think>`) 토큰은 스트리밍 중 실시간 필터. 답변 확정 후 Markdown 렌더 |
+| D32  | 벡터 검색에 유사도 임계값(minScore=0.3) 도입          | 관련성 낮은 소스가 컨텍스트/근거로 유입되는 문제 방지. `VectorSearchEngine.search`에 파라미터 추가                                          |
+| D33  | 커스텀 브랜드 색상(#F94315) 미적용, 시스템 색상 유지   | 사용자 요청으로 원복. 색상은 `AppTheme.swift`의 semantic 토큰 1곳에 집약해 향후 변경 용이하게 유지                                         |
+| D34  | 최초 실행 온보딩 + 모델 상태 표시 추가 (Phase 5.5)   | 첫인상 개선. `hasCompletedOnboarding`(UserDefaults) 게이트, `AppState.modelStatus`로 다운로드 진행률/로딩/준비 상태를 메뉴바에 노출        |
+| D35  | UI 텍스트 한국어 통일 (Phase 5.5)                    | 영어/한국어 혼용 제거. 기본 대화 제목도 "새 채팅"으로 변경                                                                                 |
 
 ### 28.3.1 Phase 0 진행 현황
 

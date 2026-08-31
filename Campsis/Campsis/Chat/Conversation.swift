@@ -7,7 +7,7 @@ nonisolated struct Conversation: Codable, Sendable, Identifiable {
     var createdAt: Date
     var updatedAt: Date
 
-    init(title: String = "New Chat") {
+    init(title: String = "새 채팅") {
         self.id = UUID().uuidString
         self.title = title
         self.createdAt = Date()

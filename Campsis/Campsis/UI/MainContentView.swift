@@ -12,6 +12,8 @@ struct MainContentView: View {
     @State private var selection: SidebarSection? = nil
     @State private var isDragOver = false
     @State private var importMessage: String?
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var showOnboarding = false
 
     var body: some View {
         NavigationSplitView {
@@ -30,7 +32,19 @@ struct MainContentView: View {
             handleDrop(providers)
             return true
         }
-        .task { loadConversations() }
+        .task {
+            loadConversations()
+            if !hasCompletedOnboarding { showOnboarding = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .chatResponseCompleted)) { _ in
+            loadConversations()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .requestNewChat)) { _ in
+            createNewChat()
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(isPresented: $showOnboarding)
+        }
     }
 
     // MARK: - Sidebar
@@ -38,7 +52,7 @@ struct MainContentView: View {
     private var sidebar: some View {
         VStack(spacing: 0) {
             Button(action: createNewChat) {
-                Label("New Chat", systemImage: "plus.bubble")
+                Label("새 채팅", systemImage: "plus.bubble")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             }
@@ -50,16 +64,16 @@ struct MainContentView: View {
             Divider().padding(.vertical, 4)
 
             List(selection: $selection) {
-                Section("Chats") {
+                Section("채팅") {
                     ForEach(conversations) { conv in
                         conversationRow(conv)
                             .tag(SidebarSection.chat(conv.id))
                         .contextMenu {
-                            Button("Clear Messages") {
+                            Button("대화 비우기") {
                                 clearMessages(conv)
                             }
                             Divider()
-                            Button("Delete", role: .destructive) {
+                            Button("삭제", role: .destructive) {
                                 deleteConversation(conv)
                             }
                         }
@@ -67,7 +81,7 @@ struct MainContentView: View {
                 }
 
                 Section {
-                    Label("Memories", systemImage: "brain")
+                    Label("메모리", systemImage: "brain")
                         .tag(SidebarSection.memories)
                 }
             }
@@ -115,7 +129,7 @@ struct MainContentView: View {
                     .font(.title3)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                Button("New Chat") { createNewChat() }
+                Button("새 채팅") { createNewChat() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
             }
@@ -154,7 +168,7 @@ struct MainContentView: View {
         do {
             try appState.messageRepository.deleteAll(conversationId: conv.id)
             var updated = conv
-            updated.title = "New Chat"
+            updated.title = "새 채팅"
             try appState.conversationRepository.update(&updated)
             if let idx = conversations.firstIndex(where: { $0.id == conv.id }) {
                 conversations[idx] = updated
@@ -188,7 +202,7 @@ struct MainContentView: View {
             VStack(spacing: 8) {
                 Image(systemName: "arrow.down.doc")
                     .font(.system(size: 40))
-                Text("Drop to import")
+                Text("여기에 놓아 가져오기")
                     .font(.title3)
             }
             .foregroundStyle(.tint)
@@ -231,13 +245,13 @@ struct MainContentView: View {
                         let _ = try await importer.importFile(at: url)
                         await MainActor.run {
                             withAnimation {
-                                importMessage = "\(url.lastPathComponent) imported"
+                                importMessage = "\(url.lastPathComponent) 가져옴"
                             }
                         }
                     } catch {
                         await MainActor.run {
                             withAnimation {
-                                importMessage = "Import failed: \(error.localizedDescription)"
+                                importMessage = "가져오기 실패: \(error.localizedDescription)"
                             }
                         }
                     }

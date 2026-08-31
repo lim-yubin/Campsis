@@ -4,10 +4,11 @@ struct ChatInputView: View {
     @Binding var text: String
     let isLoading: Bool
     let onSend: () -> Void
+    let onStop: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            TextField("Ask your memory...", text: $text, axis: .vertical)
+            TextField("기억에게 무엇이든 물어보세요...", text: $text, axis: .vertical)
                 .font(.body)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
@@ -19,20 +20,16 @@ struct ChatInputView: View {
                     }
                 }
 
-            Button(action: sendIfReady) {
-                Group {
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title)
-                    }
-                }
+            Button {
+                if isLoading { onStop() } else { sendIfReady() }
+            } label: {
+                Image(systemName: isLoading ? "stop.circle.fill" : "arrow.up.circle.fill")
+                    .font(.title)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(canSend ? .blue : .secondary)
-            .disabled(!canSend)
+            .foregroundStyle(isLoading ? Color.red : (canSend ? Color.chatAccent : Color.secondary))
+            .disabled(!isLoading && !canSend)
+            .accessibilityLabel(isLoading ? "생성 중지" : "보내기")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

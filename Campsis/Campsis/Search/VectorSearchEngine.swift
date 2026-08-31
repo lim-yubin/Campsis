@@ -19,7 +19,7 @@ actor VectorSearchEngine {
         self.sourceRepository = sourceRepository
     }
 
-    func search(query: String, topN: Int = 20) async throws -> [SearchResult] {
+    func search(query: String, topN: Int = 20, minScore: Float = 0.3) async throws -> [SearchResult] {
         try await embeddingService.loadIfNeeded()
 
         let queryVector = try await embeddingService.embed(query)
@@ -36,7 +36,9 @@ actor VectorSearchEngine {
         for record in records {
             let docVector = record.vectorAsFloats()
             let similarity = cosineSimilarity(queryVector, docVector)
-            scored.append((sourceId: record.sourceId, score: similarity))
+            if similarity >= minScore {
+                scored.append((sourceId: record.sourceId, score: similarity))
+            }
         }
 
         scored.sort { $0.score > $1.score }

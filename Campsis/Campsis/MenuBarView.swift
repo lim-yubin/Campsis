@@ -2,27 +2,30 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(AppState.self) private var appState
 
     var body: some View {
-        Button("Quick Memory") {
-            // Phase 4
-        }
-        .keyboardShortcut("m", modifiers: [.option, .shift])
+        Text(appState.modelStatus.label)
 
         Divider()
 
-        Button("Open Memory") {
+        Button("빠른 메모") {
+            NotificationCenter.default.post(name: .triggerQuickMemory, object: nil)
+        }
+
+        Divider()
+
+        Button("메모리 열기") {
             openMemoryWindow()
         }
-        .keyboardShortcut("o", modifiers: [.option])
 
         Divider()
 
         SettingsLink {
-            Text("Settings…")
+            Text("설정…")
         }
 
-        Button("Quit Campsis") {
+        Button("Campsis 종료") {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")

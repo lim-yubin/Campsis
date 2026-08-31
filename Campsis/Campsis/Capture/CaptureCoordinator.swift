@@ -23,6 +23,12 @@ final class CaptureCoordinator {
         KeyboardShortcuts.onKeyUp(for: .quickMemory) { [weak self] in
             self?.handleQuickMemory()
         }
+        NotificationCenter.default.addObserver(
+            forName: .triggerQuickMemory, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleQuickMemory()
+        }
+
         KeyboardShortcuts.onKeyUp(for: .openMemory) {
             Task { @MainActor in
                 if let window = NSApp.windows.first(where: {

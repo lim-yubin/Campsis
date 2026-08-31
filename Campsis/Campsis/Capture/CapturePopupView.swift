@@ -13,7 +13,7 @@ struct CapturePopupView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "brain.head.profile")
-                Text("Remember")
+                Text("기억하기")
                     .font(.headline)
                 Spacer()
             }
@@ -22,16 +22,16 @@ struct CapturePopupView: View {
 
             contextLine
 
-            TextField("Memo (optional)", text: $userNote, axis: .vertical)
+            TextField("메모 (선택)", text: $userNote, axis: .vertical)
                 .lineLimit(3...5)
                 .focused($noteFieldFocused)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("취소") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Remember") { save() }
+                Button("기억하기") { save() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
             }
@@ -106,6 +106,7 @@ struct CapturePopupView: View {
             if let queue = processingQueue {
                 Task { await queue.enqueue(source) }
             }
+            NotificationCenter.default.post(name: .captureSaved, object: nil)
         } catch {
             NSLog("Failed to save source: \(error)")
         }

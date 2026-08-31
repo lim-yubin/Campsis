@@ -12,7 +12,7 @@ struct QuickNotePopupView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "note.text")
-                Text("Quick Note")
+                Text("빠른 메모")
                     .font(.headline)
                 Spacer()
             }
@@ -27,13 +27,13 @@ struct QuickNotePopupView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 
             HStack {
-                Text("\(noteText.count) chars")
+                Text("\(noteText.count)자")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("취소") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Remember") { save() }
+                Button("기억하기") { save() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -55,6 +55,7 @@ struct QuickNotePopupView: View {
             if let queue = processingQueue {
                 Task { await queue.enqueue(source) }
             }
+            NotificationCenter.default.post(name: .captureSaved, object: nil)
         } catch {
             NSLog("[Campsis] Failed to save quick note: \(error)")
         }

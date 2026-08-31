@@ -10,4 +10,7 @@ extension KeyboardShortcuts.Name {
 extension Notification.Name {
     static let openMemoryWindow = Notification.Name("openMemoryWindow")
     static let chatResponseCompleted = Notification.Name("chatResponseCompleted")
+    static let triggerQuickMemory = Notification.Name("triggerQuickMemory")
+    static let captureSaved = Notification.Name("captureSaved")
+    static let requestNewChat = Notification.Name("requestNewChat")
 }

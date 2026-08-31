@@ -9,7 +9,12 @@ private enum HuggingFaceDownloaderError: Error {
 }
 
 private struct CampsisDownloader: MLXLMCommon.Downloader {
+    let onProgress: (@Sendable (Double) -> Void)?
     private let client = HubClient()
+
+    init(onProgress: (@Sendable (Double) -> Void)? = nil) {
+        self.onProgress = onProgress
+    }
 
     func download(
         id: String,
@@ -22,12 +27,14 @@ private struct CampsisDownloader: MLXLMCommon.Downloader {
             throw HuggingFaceDownloaderError.invalidRepositoryID(id)
         }
         let rev = revision ?? "main"
+        let onProgress = self.onProgress
         return try await client.downloadSnapshot(
             of: repoID,
             revision: rev,
             matching: patterns,
             progressHandler: { @MainActor progress in
                 progressHandler(progress)
+                onProgress?(progress.fractionCompleted)
             }
         )
     }
@@ -90,8 +97,10 @@ private struct TokenizerBridge: @unchecked Sendable, MLXLMCommon.Tokenizer {
 actor MLXGenerator: TextGenerator {
     var modelContainer: ModelContainer?
     private let modelId = "mlx-community/Qwen3-4B-4bit"
+    private var progressHandler: (@Sendable (Double) -> Void)?
 
-    func preload() async throws {
+    func preload(onProgress: (@Sendable (Double) -> Void)? = nil) async throws {
+        progressHandler = onProgress
         _ = try await getModel()
         NSLog("[MLXGenerator] Model preloaded: \(modelId)")
     }
@@ -131,7 +140,7 @@ actor MLXGenerator: TextGenerator {
         if let m = modelContainer { return m }
         NSLog("[MLXGenerator] Loading model: \(modelId)...")
         let m = try await loadModelContainer(
-            from: CampsisDownloader(),
+            from: CampsisDownloader(onProgress: progressHandler),
             using: CampsisTokenizerLoader(),
             id: modelId
         )

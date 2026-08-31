@@ -8,7 +8,21 @@ struct ChatResponse: Sendable {
 
 protocol ChatEngineProtocol: Sendable {
     func send(query: String, conversationId: String) async throws -> ChatResponse
+    func sendStream(query: String, conversationId: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> ChatResponse
+    func suggestTitle(for query: String, answer: String) async -> String?
     func resetSession() async
+}
+
+extension ChatEngineProtocol {
+    func sendStream(query: String, conversationId: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> ChatResponse {
+        let response = try await send(query: query, conversationId: conversationId)
+        onToken(response.answer)
+        return response
+    }
+
+    func suggestTitle(for query: String, answer: String) async -> String? { nil }
 }
 
 nonisolated private struct SendableChatSession: @unchecked Sendable {
@@ -116,6 +130,113 @@ actor MLXChatEngine: ChatEngineProtocol {
                 return ChatResponse(answer: stripThinking(retryResponse), sources: results)
             }
             throw error
+        }
+    }
+
+    func sendStream(query: String, conversationId: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> ChatResponse {
+        if currentConversationId != conversationId {
+            chatSession = nil
+            currentConversationId = conversationId
+        }
+
+        let results = try await searchEngine.search(query: query, topN: 5)
+
+        let contextBlock = buildContext(from: results)
+        let formatReminder = "\n\nRemember: Answer in natural language with markdown. Do NOT output JSON."
+        let prompt: String
+        if results.isEmpty {
+            prompt = "Question: \(query)\n\nNo relevant memories found. Answer using your general knowledge." + formatReminder
+        } else {
+            prompt = """
+                Question: \(query)
+
+                Sources from user's memory:
+                \(contextBlock)
+                """ + formatReminder
+        }
+
+        if chatSession == nil {
+            let previousMessages = try messageRepository.fetchLast(
+                conversationId: conversationId, limit: 6)
+
+            var history: [Chat.Message] = []
+            for msg in previousMessages {
+                let role: Chat.Message.Role = msg.role == .user ? .user : .assistant
+                history.append(.init(role: role, content: msg.content))
+            }
+
+            chatSession = SendableChatSession(session: ChatSession(
+                modelContainer,
+                instructions: instructions,
+                history: history
+            ))
+        }
+
+        guard let wrapper = chatSession else {
+            return ChatResponse(answer: "세션 초기화 실패", sources: results)
+        }
+
+        do {
+            let answer = try await streamAndCollect(session: wrapper.session, prompt: prompt, onToken: onToken)
+            return ChatResponse(answer: answer, sources: results)
+        } catch let error where !(error is CancellationError) {
+            let desc = error.localizedDescription
+            if desc.contains("context") || desc.contains("memory") {
+                let newWrapper = SendableChatSession(session: ChatSession(modelContainer, instructions: instructions))
+                chatSession = newWrapper
+                let answer = try await streamAndCollect(session: newWrapper.session, prompt: prompt, onToken: onToken)
+                return ChatResponse(answer: answer, sources: results)
+            }
+            throw error
+        }
+    }
+
+    private func streamAndCollect(session: ChatSession, prompt: String,
+                                  onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        var raw = ""
+        var emitted = 0
+        for try await chunk in session.streamResponse(to: prompt) {
+            try Task.checkCancellation()
+            raw += chunk
+            let visible = visiblePortion(raw)
+            if visible.count > emitted {
+                let delta = String(visible.dropFirst(emitted))
+                emitted = visible.count
+                onToken(delta)
+            }
+        }
+        return stripThinking(raw)
+    }
+
+    private func visiblePortion(_ raw: String) -> String {
+        if let r = raw.range(of: "</think>") {
+            let after = raw[r.upperBound...]
+            return String(after.drop(while: { $0 == "\n" || $0 == " " }))
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("<think") { return "" }
+        return trimmed.isEmpty ? "" : raw
+    }
+
+    func suggestTitle(for query: String, answer: String) async -> String? {
+        let session = ChatSession(modelContainer, instructions: """
+            You generate a very short conversation title (2-4 words) summarizing the topic.
+            Respond with ONLY the title text. No quotes, no surrounding punctuation, no explanation.
+            Match the language of the user's question.
+            """)
+        let prompt = "User question: \(query)\n\nWrite a 2-4 word title."
+        do {
+            let raw = try await session.respond(to: prompt)
+            var title = stripThinking(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            title = title.replacingOccurrences(of: "\"", with: "")
+            if let firstLine = title.split(separator: "\n").first {
+                title = String(firstLine)
+            }
+            title = String(title.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? nil : title
+        } catch {
+            return nil
         }
     }
 

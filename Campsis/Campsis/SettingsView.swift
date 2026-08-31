@@ -5,9 +5,9 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettingsView()
-                .tabItem { Label("General", systemImage: "gear") }
+                .tabItem { Label("일반", systemImage: "gear") }
             ShortcutSettingsView()
-                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+                .tabItem { Label("단축키", systemImage: "keyboard") }
         }
         .frame(width: 450, height: 280)
     }
@@ -18,7 +18,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Appearance") {
+            Section("모양") {
                 Toggle("Dock에 아이콘 표시", isOn: $showDockIcon)
                     .onChange(of: showDockIcon) { _, newValue in
                         NSApp.setActivationPolicy(newValue ? .regular : .accessory)
@@ -36,28 +36,28 @@ struct GeneralSettingsView: View {
 struct ShortcutSettingsView: View {
     var body: some View {
         Form {
-            Section("Global Shortcuts") {
+            Section("전역 단축키") {
                 HStack {
-                    Text("Remember Current Context")
+                    Text("현재 컨텍스트 기억")
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .rememberContext)
                 }
 
                 HStack {
-                    Text("Quick Memory")
+                    Text("빠른 메모")
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .quickMemory)
                 }
 
                 HStack {
-                    Text("Open Memory")
+                    Text("메모리 열기")
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .openMemory)
                 }
             }
 
             Section {
-                Button("Restore Defaults") {
+                Button("기본값 복원") {
                     KeyboardShortcuts.reset(.rememberContext, .quickMemory, .openMemory)
                 }
             }

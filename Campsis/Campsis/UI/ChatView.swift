@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct ChatView: View {
     @Environment(AppState.self) var appState
@@ -6,37 +7,51 @@ struct ChatView: View {
 
     @State private var messages: [Message] = []
     @State private var inputText = ""
-    @State private var isLoading = false
     @State private var sourceCache: [String: [Source]] = [:]
+
+    private var isGenerating: Bool { appState.pendingConversations.contains(conversationId) }
+    private var streamingText: String { appState.streamingText[conversationId] ?? "" }
+    private var showNewChatSuggestion: Bool {
+        !isGenerating && messages.last?.role == .assistant
+            && (messages.last?.content.hasPrefix(AppState.contextErrorPrefix) ?? false)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             messageList
 
+            if showNewChatSuggestion {
+                HStack(spacing: 8) {
+                    Button("새 채팅 시작") {
+                        NotificationCenter.default.post(name: .requestNewChat, object: nil)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+
             Divider()
 
-            ChatInputView(text: $inputText, isLoading: isLoading) {
+            ChatInputView(text: $inputText, isLoading: isGenerating) {
                 sendMessage()
+            } onStop: {
+                appState.stopGeneration(conversationId: conversationId)
             }
         }
-        .onAppear { refreshState() }
+        .onAppear { loadMessages() }
         .onReceive(NotificationCenter.default.publisher(for: .chatResponseCompleted)) { notification in
             guard let convId = notification.userInfo?["conversationId"] as? String,
                   convId == conversationId else { return }
             loadMessages()
-            isLoading = false
         }
-    }
-
-    private func refreshState() {
-        loadMessages()
-        isLoading = appState.pendingConversations.contains(conversationId)
     }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                if messages.isEmpty {
+                if messages.isEmpty && !isGenerating {
                     emptyState
                 } else {
                     LazyVStack(spacing: 16) {
@@ -47,18 +62,54 @@ struct ChatView: View {
                             )
                             .id(message.id)
                         }
+
+                        if isGenerating {
+                            streamingBubble
+                                .id("streaming")
+                        }
                     }
                     .padding(.vertical, 16)
                 }
             }
-            .onChange(of: messages.count) {
-                if let lastId = messages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
-                }
+            .onChange(of: messages.count) { scrollToBottom(proxy) }
+            .onChange(of: streamingText) { scrollToBottom(proxy) }
+        }
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        withAnimation {
+            if isGenerating {
+                proxy.scrollTo("streaming", anchor: .bottom)
+            } else if let lastId = messages.last?.id {
+                proxy.scrollTo(lastId, anchor: .bottom)
             }
         }
+    }
+
+    private var streamingBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "brain.head.profile")
+                .font(.title2)
+                .foregroundStyle(Color.assistantAccent)
+                .frame(width: 28, height: 28)
+                .accessibilityLabel("AI")
+
+            Group {
+                if streamingText.isEmpty {
+                    ThinkingIndicator()
+                } else {
+                    Text(streamingText)
+                        .font(.body)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(14)
+            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+            .frame(maxWidth: 600, alignment: .leading)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal)
     }
 
     private var emptyState: some View {
@@ -108,8 +159,27 @@ struct ChatView: View {
         }
         messages.append(userMessage)
         inputText = ""
-        isLoading = true
 
         appState.generateResponse(for: text, conversationId: conversationId)
+    }
+}
+
+struct ThinkingIndicator: View {
+    @State private var phase = 0
+    private let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .frame(width: 7, height: 7)
+                    .opacity(phase == index ? 1.0 : 0.3)
+            }
+        }
+        .foregroundStyle(.secondary)
+        .onReceive(timer) { _ in
+            phase = (phase + 1) % 3
+        }
+        .accessibilityLabel("답변 생성 중")
     }
 }

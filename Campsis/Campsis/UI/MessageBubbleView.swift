@@ -37,8 +37,9 @@ struct MessageBubbleView: View {
     private var avatar: some View {
         Image(systemName: message.role == .user ? "person.circle.fill" : "brain.head.profile")
             .font(.title2)
-            .foregroundStyle(message.role == .user ? .blue : .purple)
+            .foregroundStyle(message.role == .user ? Color.chatAccent : Color.assistantAccent)
             .frame(width: 28, height: 28)
+            .accessibilityLabel(message.role == .user ? "나" : "AI")
     }
 
     private var bubble: some View {
@@ -54,8 +55,8 @@ struct MessageBubbleView: View {
         .padding(14)
         .background(
             message.role == .user
-                ? Color.blue.opacity(0.1)
-                : Color(.controlBackgroundColor),
+                ? Color.userBubbleBackground
+                : Color.assistantBubbleBackground,
             in: RoundedRectangle(cornerRadius: 12)
         )
         .frame(maxWidth: 600, alignment: message.role == .user ? .trailing : .leading)
@@ -85,7 +86,7 @@ struct MessageBubbleView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "doc.text")
-                Text("\(sources.count) sources")
+                Text("출처 \(sources.count)개")
                 Image(systemName: showSources ? "chevron.up" : "chevron.down")
             }
             .font(.subheadline)

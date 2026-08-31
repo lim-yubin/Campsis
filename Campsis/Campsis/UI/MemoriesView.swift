@@ -12,6 +12,7 @@ struct MemoriesView: View {
     @State private var selectedDate: Date? = nil
     @State private var showCalendar = false
     @State private var calendarDate: Date = Date()
+    @State private var searchText = ""
 
     private var filteredCount: Int {
         groupedSources.reduce(0) { $0 + $1.sources.count }
@@ -26,14 +27,16 @@ struct MemoriesView: View {
         labelFormatter.locale = Locale(identifier: "ko_KR")
         labelFormatter.dateFormat = "yyyy년 M월 d일"
 
-        let filtered: [Source]
+        let base: [Source]
         if let date = selectedDate {
             let dayStart = calendar.startOfDay(for: date)
             let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
-            filtered = sources.filter { $0.capturedAt >= dayStart && $0.capturedAt < dayEnd }
+            base = sources.filter { $0.capturedAt >= dayStart && $0.capturedAt < dayEnd }
         } else {
-            filtered = sources
+            base = sources
         }
+
+        let filtered = base.filter { matchesSearch($0) }
 
         let grouped = Dictionary(grouping: filtered) { source in
             formatter.string(from: source.capturedAt)
@@ -47,8 +50,17 @@ struct MemoriesView: View {
         }
     }
 
+    private func matchesSearch(_ source: Source) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return true }
+        let fields = [source.content, source.summary, source.ocrText,
+                      source.transcript, source.userNote, source.windowTitle, source.application]
+        return fields.contains { $0?.lowercased().contains(query) == true }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            searchField
             filterBar
             Divider()
             sourceList
@@ -65,6 +77,29 @@ struct MemoriesView: View {
         ) { result in
             handleFileImport(result)
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("기억 검색...", text: $searchText)
+                .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 
     private var filterBar: some View {
@@ -85,7 +120,7 @@ struct MemoriesView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("\(filteredCount) items")
+            Text("\(filteredCount)개")
                 .font(.body)
                 .foregroundStyle(.secondary)
 
@@ -100,9 +135,10 @@ struct MemoriesView: View {
                             .font(.body)
                     }
                 }
-                .foregroundStyle(selectedDate != nil ? .blue : .secondary)
+                .foregroundStyle(selectedDate != nil ? Color.chatAccent : Color.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("날짜 필터")
             .popover(isPresented: $showCalendar, arrowEdge: .bottom) {
                 calendarPopover
             }
@@ -115,6 +151,7 @@ struct MemoriesView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("파일 가져오기")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -123,21 +160,19 @@ struct MemoriesView: View {
     private var calendarPopover: some View {
         VStack(spacing: 12) {
             DatePicker(
-                "Select Date",
+                "날짜 선택",
                 selection: $calendarDate,
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
             .labelsHidden()
-            .focusable(false)
-            .scaleEffect(1.4)
-            .frame(width: 280, height: 260)
+            .frame(width: 320)
             .onChange(of: calendarDate) { _, newDate in
                 selectedDate = newDate
             }
 
             if selectedDate != nil {
-                Button("Reset") {
+                Button("초기화") {
                     selectedDate = nil
                     showCalendar = false
                 }
@@ -146,7 +181,7 @@ struct MemoriesView: View {
                 .foregroundStyle(.red)
             }
         }
-        .padding(8)
+        .padding(16)
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
@@ -167,7 +202,7 @@ struct MemoriesView: View {
                     }
                 }
                 await MainActor.run {
-                    importStatus = "\(count) file(s) imported"
+                    importStatus = "파일 \(count)개 가져옴"
                     loadSources()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         importStatus = nil
@@ -185,11 +220,11 @@ struct MemoriesView: View {
     private var sourceList: some View {
         let groups = groupedSources
 
-        if groups.isEmpty && selectedDate != nil {
+        if groups.isEmpty && (selectedDate != nil || !searchText.isEmpty) {
             ContentUnavailableView(
-                "No memories",
-                systemImage: "calendar.badge.exclamationmark",
-                description: Text("선택한 날짜에 저장된 기억이 없습니다.")
+                "기억 없음",
+                systemImage: "magnifyingglass",
+                description: Text(searchText.isEmpty ? "선택한 날짜에 저장된 기억이 없습니다." : "검색 결과가 없습니다.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -214,7 +249,7 @@ struct MemoriesView: View {
                                     Button(role: .destructive) {
                                         sourceToDelete = source
                                     } label: {
-                                        Label("Delete", systemImage: "trash")
+                                        Label("삭제", systemImage: "trash")
                                     }
                                 }
                         }
@@ -290,12 +325,12 @@ enum SourceFilter: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .all: return "All"
-        case .text: return "Text"
-        case .screenshot: return "Screenshot"
-        case .note: return "Note"
-        case .voice: return "Voice"
-        case .file: return "File"
+        case .all: return "전체"
+        case .text: return "텍스트"
+        case .screenshot: return "스크린샷"
+        case .note: return "메모"
+        case .voice: return "음성"
+        case .file: return "파일"
         }
     }
 }
@@ -346,11 +381,11 @@ struct MemoryRowView: View {
 
     private var iconColor: Color {
         switch source.type {
-        case .selectedText: return .blue
-        case .screenshot: return .purple
-        case .note: return .orange
-        case .voice: return .green
-        case .file: return .gray
+        case .selectedText: return .sourceText
+        case .screenshot: return .sourceScreenshot
+        case .note: return .sourceNote
+        case .voice: return .sourceVoice
+        case .file: return .sourceFile
         }
     }
 
@@ -374,15 +409,18 @@ struct MemoryRowView: View {
             Image(systemName: "clock")
                 .foregroundStyle(.orange)
                 .font(.caption)
+                .accessibilityLabel("처리 대기 중")
         case .processing:
             ProgressView()
                 .scaleEffect(0.6)
+                .accessibilityLabel("처리 중")
         case .completed:
             EmptyView()
         case .failed:
             Image(systemName: "exclamationmark.circle")
                 .foregroundStyle(.red)
                 .font(.caption)
+                .accessibilityLabel("처리 실패")
         }
     }
 }

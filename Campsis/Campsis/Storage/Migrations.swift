@@ -76,5 +76,13 @@ nonisolated enum AppMigrations {
                 columns: ["conversation_id"]
             )
         }
+
+        migrator.registerMigration("v5-markdown") { db in
+            try db.alter(table: "source") { t in
+                t.add(column: "markdown_path", .text)
+                t.add(column: "markdown_status", .text).notNull().defaults(to: "pending")
+                t.add(column: "markdown_updated_at", .datetime)
+            }
+        }
     }
 }

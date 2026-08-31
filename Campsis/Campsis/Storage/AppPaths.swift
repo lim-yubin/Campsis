@@ -16,6 +16,8 @@ nonisolated enum AppPaths {
 
     static let audio: URL = applicationSupport.appending(path: "audio", directoryHint: .isDirectory)
 
+    static let markdowns: URL = applicationSupport.appending(path: "markdowns", directoryHint: .isDirectory)
+
     private static var basePath: String {
         let p = applicationSupport.path(percentEncoded: false)
         return p.hasSuffix("/") ? p : p + "/"
@@ -23,7 +25,7 @@ nonisolated enum AppPaths {
 
     static func ensureDirectories() throws {
         let fm = FileManager.default
-        for dir in [applicationSupport, screenshots, files, audio] {
+        for dir in [applicationSupport, screenshots, files, audio, markdowns] {
             if !fm.fileExists(atPath: dir.path(percentEncoded: false)) {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }

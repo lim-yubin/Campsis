@@ -188,8 +188,8 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 | 7.3 | 설정: AI 제공자 선택 + API 키 입력                 | 완료     | 로컬 Qwen ↔ GPT-5.6 Luna, 런타임 전환. AISettingsView      |
 | 7.4 | 엔진 선택/전환 배선 (AppState/AppDelegate)         | 완료     | 설정 기반 엔진 구성, 폴백 유지. configureChatEngine        |
 | 7.4.1 | AICredentials 계층 키 리졸버                       | 완료     | 키체인(BYOK) → (DEBUG).env → (미래)프록시. 릴리즈 컴파일 제외 |
-| 7.5 | MD 진실원 저장 계층                                | 대기     | Luna로 요약·구조화 → .md 저장, 편집 가능                    |
-| 7.6 | MD 백그라운드 생성 (지연 처리)                     | 대기     | 캡처 즉시 로컬 OCR로 검색 가능, Luna MD는 온라인 시 보강    |
+| 7.5 | MD 진실원 저장 계층                                | 완료     | 2026-09-01. Source에 markdown_path/status/updated_at, v5 마이그레이션, AppPaths/markdowns, LunaMarkdownGenerator, SourceDetailView 정리본/원본 세그먼트 |
+| 7.6 | MD 백그라운드 생성 (지연 처리)                     | 완료     | 2026-09-01. 캡처→OCR+임베딩 즉시 완료, generateMissingMarkdown가 온라인+Luna 구성 시 백그라운드 보강 |
 | 7.7 | OCRProcessor 프로토콜화 + Luna 비전 이해            | 대기     | AppleVision(로컬) 기본 + CloudVisionOCR(Luna) 선택, Windows 확장 대비 |
 | 7.8 | MD 수정 시 재임베딩 (bge-m3)                        | 대기     | MD=진실원 → 벡터는 파생, 편집 시 해당 항목만 재임베딩       |
 | 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 대기     | 단일 호출로 OCR+이해+맥락+태깅 → MD 생성                    |
@@ -241,6 +241,8 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-01 | UX: 사이드바 계층화(메모리/채팅 섹션 분리) + 메모리 상세 흐름 개편. 상세를 모달(sheet)→인라인 푸시(NavigationStack)로 전환, 정리본(MD) 우선 표시 + 툴바 "편집/직접 작성"(⌘S 저장)으로 MD 직접 편집 가능, 원본은 세그먼트로 확인. MD 생성 속도 개선: LunaMarkdownGenerator에 reasoning_effort=low. Source에 Hashable 추가(navigationDestination). 주의: MD 편집 저장은 파일·메타데이터만 갱신하며 검색 재임베딩은 7.8에서 처리 |
+| 2026-09-01 | Phase 7.5·7.6 완료: MD(진실원) 저장 계층 + 백그라운드 생성. Source에 markdown_path/markdown_status/markdown_updated_at 추가(v5-markdown 마이그레이션), AppPaths.markdowns 디렉터리, MarkdownGenerator 프로토콜 + LunaMarkdownGenerator(gpt-5.6-luna), ProcessingQueue.generateMissingMarkdown(캡처 즉시 OCR+임베딩 → MD는 온라인+Luna 구성 시 지연 보강), SourceDetailView "정리본(MD)/원본" 세그먼트로 원본 소스 즉시 확인. provider=local이면 MD 생성 건너뜀. 7.8(MD 편집 재임베딩)은 대기 |
 | 2026-09-01 | UX: Dock 앱 지원 강화 — 상단 앱 메뉴바 명령(새 채팅 ⌘N/빠른 메모 ⌘⇧N/메모리 열기 ⌘⇧M), Dock 아이콘 우클릭 메뉴, reopen 시 창 앞으로, 사이드바 하단 AI 상태(다운로드 % 포함)+설정 진입점, 빈 상태 한국어 통일. Phase 6.3 재정의: 임베딩 모델(bge-m3) 첫 실행 다운로드+진행률(다운로더는 업데이트에도 재사용), Qwen 다운로드는 배포 제외(생성=클라우드) |
 | 2026-08-31 | **출시 전략 변경: MVP 점진 출시 → 핵심 기능 완성 후 공개 출시.** 순서 변경: Phase 6의 계정·결제 인프라(6.6~6.8)를 "출시 후 검토"에서 **출시 선행 조건**으로 이동. Phase 6을 B(인프라)/C(패키징)/D(출시)로 재구성, 웹 대시보드(6.10)·클로즈드 베타(6.11)·공개 출시(6.12) 신설. 빌드 순서 A(제품:7·5)∥B(인프라) → C → 베타 → 출시. 스코프: Pro+(동기화·내보내기·팀공유)는 출시 후로 분리. 영향: Supabase 프록시·결제·대시보드가 출시 크리티컬 패스에 편입 |
 | 2026-08-31 | 배포·수익화 모델 확정: **App Store 미배포**, 브라우저 다운로드 + 웹 대시보드 + 딥링크 로그인. 플랜 BYOK/Free/Pro 3-티어(제작자 키는 Supabase Edge Function 프록시에만 보관). Phase 6 재정의(6.5~6.8 신설), "한눈에 보기" 6번 문구 수정. Phase 7.1~7.4 완료(Keychain, LunaChatEngine, AISettingsView, configureChatEngine 배선) + AICredentials 계층 키 리졸버(7.4.1) 추가. 상세 `docs/monetization-architecture.md` |

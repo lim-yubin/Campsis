@@ -64,10 +64,17 @@ struct MainContentView: View {
             Divider().padding(.vertical, 4)
 
             List(selection: $selection) {
-                Label("메모리", systemImage: "brain")
-                    .tag(SidebarSection.memories)
+                Section("메모리") {
+                    Label("모든 메모리", systemImage: "brain")
+                        .tag(SidebarSection.memories)
+                }
 
                 Section("채팅") {
+                    if conversations.isEmpty {
+                        Text("아직 대화가 없습니다")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                     ForEach(conversations) { conv in
                         conversationRow(conv)
                             .tag(SidebarSection.chat(conv.id))
@@ -175,7 +182,6 @@ struct MainContentView: View {
                 .navigationTitle(conversations.first(where: { $0.id == id })?.title ?? "채팅")
         case .memories:
             MemoriesView()
-                .navigationTitle("메모리")
         case nil:
             VStack(spacing: 14) {
                 Image(systemName: "brain.head.profile")

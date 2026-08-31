@@ -366,15 +366,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.configureChatEngine()
         }
 
+        let markdownGenerator = await MainActor.run { self.makeMarkdownGenerator() }
+        await queue.setMarkdownGenerator(markdownGenerator)
+
         Task {
             await queue.processAllPending()
             await queue.embedAllMissing()
+            await queue.generateMissingMarkdown()
+        }
+    }
+
+    /// 현재 설정(provider + 키)에 맞는 MD 생성기를 만든다. 로컬 전용이면 nil.
+    @MainActor
+    private func makeMarkdownGenerator() -> MarkdownGenerator? {
+        let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.local.rawValue
+        let provider = AIProvider(rawValue: providerRaw) ?? .local
+        if provider == .luna, let key = AICredentials.openAIKey, !key.isEmpty {
+            return LunaMarkdownGenerator(apiKey: key)
+        }
+        return nil
+    }
+
+    /// 설정 변경 시 MD 생성기를 갱신하고, 밀린 MD 생성을 시도한다.
+    @MainActor
+    private func updateMarkdownGenerator() {
+        guard let queue = processingQueue else { return }
+        let generator = makeMarkdownGenerator()
+        Task {
+            await queue.setMarkdownGenerator(generator)
+            await queue.generateMissingMarkdown()
         }
     }
 
     /// 설정(AI 제공자 + API 키)에 따라 채팅 엔진을 구성한다. 설정 변경 시 재호출된다.
     @MainActor
     private func configureChatEngine() {
+        updateMarkdownGenerator()
+
         guard let searchEngine else { return }
 
         let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.local.rawValue

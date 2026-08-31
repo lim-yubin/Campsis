@@ -16,7 +16,15 @@ nonisolated enum ProcessingStatus: String, Codable, DatabaseValueConvertible, Se
     case failed
 }
 
-nonisolated struct Source: Codable, Sendable, Identifiable {
+/// MD(진실원) 생성 상태. summary/topics 처리(ProcessingStatus)와 독립적으로 관리한다 (D39, D40).
+nonisolated enum MarkdownStatus: String, Codable, DatabaseValueConvertible, Sendable {
+    case pending      // 아직 생성 안 됨 (온라인 + Luna 구성 시 백그라운드 생성)
+    case processing
+    case completed
+    case failed
+}
+
+nonisolated struct Source: Codable, Sendable, Identifiable, Hashable {
     var id: String
     var type: SourceType
     var content: String?
@@ -35,6 +43,9 @@ nonisolated struct Source: Codable, Sendable, Identifiable {
     var summary: String?
     var topics: String?
     var processingAttempts: Int
+    var markdownPath: String?
+    var markdownStatus: MarkdownStatus
+    var markdownUpdatedAt: Date?
 
     init(
         type: SourceType,
@@ -67,6 +78,9 @@ nonisolated struct Source: Codable, Sendable, Identifiable {
         self.summary = nil
         self.topics = nil
         self.processingAttempts = 0
+        self.markdownPath = nil
+        self.markdownStatus = .pending
+        self.markdownUpdatedAt = nil
     }
 }
 
@@ -89,6 +103,9 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case processingStatus = "processing_status"
         case summary, topics
         case processingAttempts = "processing_attempts"
+        case markdownPath = "markdown_path"
+        case markdownStatus = "markdown_status"
+        case markdownUpdatedAt = "markdown_updated_at"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -107,5 +124,8 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case processingStatus = "processing_status"
         case summary, topics
         case processingAttempts = "processing_attempts"
+        case markdownPath = "markdown_path"
+        case markdownStatus = "markdown_status"
+        case markdownUpdatedAt = "markdown_updated_at"
     }
 }

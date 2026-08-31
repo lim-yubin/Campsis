@@ -59,23 +59,26 @@ struct MemoriesView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            searchField
-            filterBar
-            Divider()
-            sourceList
-        }
-        .onAppear { loadSources() }
-        .onChange(of: selectedFilter) { _, _ in loadSources() }
-        .sheet(item: $selectedSource) { source in
-            SourceDetailView(source: source)
-        }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [.pdf, .plainText, .png, .jpeg],
-            allowsMultipleSelection: true
-        ) { result in
-            handleFileImport(result)
+        NavigationStack {
+            VStack(spacing: 0) {
+                searchField
+                filterBar
+                Divider()
+                sourceList
+            }
+            .navigationTitle("메모리")
+            .navigationDestination(item: $selectedSource) { source in
+                SourceDetailView(source: source)
+            }
+            .onAppear { loadSources() }
+            .onChange(of: selectedFilter) { _, _ in loadSources() }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.pdf, .plainText, .png, .jpeg],
+                allowsMultipleSelection: true
+            ) { result in
+                handleFileImport(result)
+            }
         }
     }
 

@@ -1,40 +1,211 @@
 import SwiftUI
 
+enum SourceDetailTab: Hashable {
+    case markdown
+    case original
+}
+
 struct SourceDetailView: View {
     let source: Source
-    @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
+    @State private var selectedTab: SourceDetailTab
+    @State private var markdownText: String?
+    @State private var markdownUpdatedAt: Date?
+    @State private var isEditing = false
+    @State private var draft: String = ""
+    @State private var saveError: String?
+
+    init(source: Source) {
+        self.source = source
+        _selectedTab = State(initialValue: source.markdownPath != nil ? .markdown : .original)
+        _markdownUpdatedAt = State(initialValue: source.markdownUpdatedAt)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
+                Picker("보기", selection: $selectedTab) {
+                    Text("정리본").tag(SourceDetailTab.markdown)
+                    Text("원본").tag(SourceDetailTab.original)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(isEditing)
+
                 Divider()
-                contentSection
-                if let summary = source.summary, !summary.isEmpty {
-                    summarySection(summary)
+
+                switch selectedTab {
+                case .markdown:
+                    markdownTab
+                case .original:
+                    originalTab
                 }
-                if let topics = decodedTopics, !topics.isEmpty {
-                    topicsSection(topics)
-                }
-                metadataSection
             }
             .padding(24)
         }
         .frame(minWidth: 500, minHeight: 400)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("닫기") { dismiss() }
-            }
-            if let url = openableURL {
+        .navigationTitle(source.windowTitle ?? "메모리")
+        .task { loadMarkdown() }
+        .toolbar { toolbarContent }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if selectedTab == .markdown {
+            if isEditing {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("저장") { saveMarkdown() }
+                        .keyboardShortcut("s", modifiers: .command)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("취소") { isEditing = false }
+                }
+            } else {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        NSWorkspace.shared.open(url)
+                        startEditing()
                     } label: {
-                        Label("원문 열기", systemImage: "arrow.up.right.square")
+                        Label(markdownText?.isEmpty == false ? "편집" : "직접 작성",
+                              systemImage: "square.and.pencil")
                     }
                 }
             }
         }
+        if !isEditing, let url = openableURL {
+            ToolbarItem(placement: .secondaryAction) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("원문 열기", systemImage: "arrow.up.right.square")
+                }
+            }
+        }
+    }
+
+    // MARK: - Tabs
+
+    @ViewBuilder
+    private var markdownTab: some View {
+        if isEditing {
+            markdownEditor
+        } else if let md = markdownText, !md.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                MarkdownTextView(text: md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                    Text("AI가 정리한 노트예요. 원본은 '원본' 탭에서 확인하세요.")
+                    if let updated = markdownUpdatedAt {
+                        Text("· \(updated, style: .date)")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            }
+        } else {
+            markdownPlaceholder
+        }
+    }
+
+    @ViewBuilder
+    private var markdownEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("마크다운으로 편집")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $draft)
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 320)
+                .padding(8)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
+            if let saveError {
+                Label(saveError, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Text("⌘S 로 저장할 수 있어요.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private var markdownPlaceholder: some View {
+        VStack(spacing: 12) {
+            switch source.markdownStatus {
+            case .processing:
+                ProgressView()
+                Text("정리본을 만드는 중이에요…")
+            case .pending:
+                Image(systemName: "clock")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.tertiary)
+                Text("정리본 생성 대기 중\n(온라인 상태에서 AI가 자동으로 정리합니다)")
+                    .multilineTextAlignment(.center)
+            case .failed:
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.orange)
+                Text("정리본 생성에 실패했어요. 잠시 후 다시 시도됩니다.")
+            case .completed:
+                Text("정리본이 아직 없어요.")
+            }
+
+            Button {
+                startEditing()
+            } label: {
+                Label("직접 작성", systemImage: "square.and.pencil")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, minHeight: 200)
+    }
+
+    private func startEditing() {
+        draft = markdownText ?? ""
+        saveError = nil
+        selectedTab = .markdown
+        isEditing = true
+    }
+
+    private func saveMarkdown() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = source
+        do {
+            try appState.sourceRepository.writeMarkdown(trimmed, for: &updated)
+            markdownText = trimmed
+            markdownUpdatedAt = updated.markdownUpdatedAt
+            isEditing = false
+            saveError = nil
+        } catch {
+            saveError = error.localizedDescription
+            NSLog("[Campsis] Markdown save failed for \(source.id): \(error)")
+        }
+    }
+
+    @ViewBuilder
+    private var originalTab: some View {
+        contentSection
+        if let summary = source.summary, !summary.isEmpty {
+            summarySection(summary)
+        }
+        if let topics = decodedTopics, !topics.isEmpty {
+            topicsSection(topics)
+        }
+        metadataSection
+    }
+
+    private func loadMarkdown() {
+        guard let path = source.markdownPath else { return }
+        markdownText = try? String(contentsOf: AppPaths.absoluteURL(from: path), encoding: .utf8)
     }
 
     private var openableURL: URL? {

@@ -64,6 +64,9 @@ struct MainContentView: View {
             Divider().padding(.vertical, 4)
 
             List(selection: $selection) {
+                Label("메모리", systemImage: "brain")
+                    .tag(SidebarSection.memories)
+
                 Section("채팅") {
                     ForEach(conversations) { conv in
                         conversationRow(conv)
@@ -78,11 +81,6 @@ struct MainContentView: View {
                             }
                         }
                     }
-                }
-
-                Section {
-                    Label("메모리", systemImage: "brain")
-                        .tag(SidebarSection.memories)
                 }
             }
             .listStyle(.sidebar)
@@ -174,8 +172,10 @@ struct MainContentView: View {
         case .chat(let id):
             ChatView(conversationId: id)
                 .id(id)
+                .navigationTitle(conversations.first(where: { $0.id == id })?.title ?? "채팅")
         case .memories:
             MemoriesView()
+                .navigationTitle("메모리")
         case nil:
             VStack(spacing: 14) {
                 Image(systemName: "brain.head.profile")
@@ -189,6 +189,7 @@ struct MainContentView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
             }
+            .navigationTitle("Campsis")
         }
     }
 

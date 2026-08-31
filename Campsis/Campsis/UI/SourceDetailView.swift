@@ -185,6 +185,11 @@ struct SourceDetailView: View {
             markdownUpdatedAt = updated.markdownUpdatedAt
             isEditing = false
             saveError = nil
+            // 편집한 정리본이 검색에도 반영되도록 해당 항목만 재임베딩한다 (7.8).
+            if let queue = appState.processingQueueRef as? ProcessingQueue {
+                let id = source.id
+                Task { await queue.reembedSource(id: id) }
+            }
         } catch {
             saveError = error.localizedDescription
             NSLog("[Campsis] Markdown save failed for \(source.id): \(error)")

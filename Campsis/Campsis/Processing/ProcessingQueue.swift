@@ -130,11 +130,15 @@ actor ProcessingQueue {
             return
         }
 
-        let searchableText = SearchableTextBuilder.build(from: source)
+        // MD(진실원)가 있으면 그것으로 임베딩한다 (D39).
+        let markdown = repository.readMarkdown(source)
+        let searchableText = SearchableTextBuilder.build(from: source, markdown: markdown)
         guard !searchableText.isEmpty else { return }
 
         do {
             let vector = try await embeddingService.embed(searchableText)
+            // 재임베딩 대비: 기존 벡터를 지우고 새로 저장 (source당 1개 유지).
+            try? embeddingRepository.delete(forSourceId: source.id)
             var record = EmbeddingRecord(
                 sourceId: source.id,
                 vector: vector,
@@ -146,6 +150,12 @@ actor ProcessingQueue {
         } catch {
             NSLog("[Campsis] Embedding failed for source \(source.id): \(error)")
         }
+    }
+
+    /// 특정 소스를 다시 임베딩한다 (MD 수동 편집 후 호출). MD 진실원 기준으로 재계산.
+    func reembedSource(id: String) async {
+        guard let source = try? repository.fetch(id: id) else { return }
+        await embedSource(source)
     }
 
     func embedAllMissing() async {
@@ -196,6 +206,8 @@ actor ProcessingQueue {
             let markdown = try await generator.generate(from: source)
             try repository.writeMarkdown(markdown, for: &source)
             NSLog("[Campsis] Markdown generated for source \(source.id)")
+            // MD가 진실원이 되었으므로 MD 기준으로 재임베딩한다 (D39, 7.8).
+            await embedSource(source)
         } catch MarkdownGeneratorError.emptyInput {
             // 정리할 내용이 없으면 실패가 아니라 완료로 둔다 (재시도 방지).
             source.markdownStatus = .completed

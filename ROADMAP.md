@@ -191,7 +191,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 | 7.5 | MD 진실원 저장 계층                                | 완료     | 2026-09-01. Source에 markdown_path/status/updated_at, v5 마이그레이션, AppPaths/markdowns, LunaMarkdownGenerator, SourceDetailView 정리본/원본 세그먼트 |
 | 7.6 | MD 백그라운드 생성 (지연 처리)                     | 완료     | 2026-09-01. 캡처→OCR+임베딩 즉시 완료, generateMissingMarkdown가 온라인+Luna 구성 시 백그라운드 보강 |
 | 7.7 | OCRProcessor 프로토콜화 + Luna 비전 이해            | 대기     | AppleVision(로컬) 기본 + CloudVisionOCR(Luna) 선택, Windows 확장 대비 |
-| 7.8 | MD 수정 시 재임베딩 (bge-m3)                        | 대기     | MD=진실원 → 벡터는 파생, 편집 시 해당 항목만 재임베딩       |
+| 7.8 | MD 수정 시 재임베딩 (bge-m3)                        | 완료     | 2026-09-01. SearchableTextBuilder가 MD 우선, MD 생성/편집 시 해당 항목만 delete+재임베딩 (source당 벡터 1개 유지) |
 | 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 대기     | 단일 호출로 OCR+이해+맥락+태깅 → MD 생성                    |
 
 **결정:** 생성=Luna(클라우드), 임베딩=bge-m3(로컬 유지), OCR=로컬 기본+Luna 선택, MD 생성=백그라운드/지연. (상세 §28 D36~)
@@ -241,6 +241,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-01 | Phase 7.8 완료: MD 수정 시 재임베딩. SearchableTextBuilder가 MD(진실원) 있으면 MD 기준으로 검색 텍스트 구성, MD 자동생성(Luna) 및 수동편집(⌘S) 시 해당 소스만 delete→재임베딩(source당 벡터 1개 유지). 편집한 정리본이 즉시 의미검색에 반영됨. ProcessingQueue.reembedSource(id:) 추가 |
 | 2026-09-01 | UX: 사이드바 계층화(메모리/채팅 섹션 분리) + 메모리 상세 흐름 개편. 상세를 모달(sheet)→인라인 푸시(NavigationStack)로 전환, 정리본(MD) 우선 표시 + 툴바 "편집/직접 작성"(⌘S 저장)으로 MD 직접 편집 가능, 원본은 세그먼트로 확인. MD 생성 속도 개선: LunaMarkdownGenerator에 reasoning_effort=low. Source에 Hashable 추가(navigationDestination). 주의: MD 편집 저장은 파일·메타데이터만 갱신하며 검색 재임베딩은 7.8에서 처리 |
 | 2026-09-01 | Phase 7.5·7.6 완료: MD(진실원) 저장 계층 + 백그라운드 생성. Source에 markdown_path/markdown_status/markdown_updated_at 추가(v5-markdown 마이그레이션), AppPaths.markdowns 디렉터리, MarkdownGenerator 프로토콜 + LunaMarkdownGenerator(gpt-5.6-luna), ProcessingQueue.generateMissingMarkdown(캡처 즉시 OCR+임베딩 → MD는 온라인+Luna 구성 시 지연 보강), SourceDetailView "정리본(MD)/원본" 세그먼트로 원본 소스 즉시 확인. provider=local이면 MD 생성 건너뜀. 7.8(MD 편집 재임베딩)은 대기 |
 | 2026-09-01 | UX: Dock 앱 지원 강화 — 상단 앱 메뉴바 명령(새 채팅 ⌘N/빠른 메모 ⌘⇧N/메모리 열기 ⌘⇧M), Dock 아이콘 우클릭 메뉴, reopen 시 창 앞으로, 사이드바 하단 AI 상태(다운로드 % 포함)+설정 진입점, 빈 상태 한국어 통일. Phase 6.3 재정의: 임베딩 모델(bge-m3) 첫 실행 다운로드+진행률(다운로더는 업데이트에도 재사용), Qwen 다운로드는 배포 제외(생성=클라우드) |

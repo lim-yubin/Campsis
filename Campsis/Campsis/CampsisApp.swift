@@ -16,6 +16,7 @@ struct CampsisApp: App {
                 .environment(appDelegate.appState)
         }
         .defaultSize(width: 900, height: 640)
+        .defaultLaunchBehavior(.presented)
 
         Settings {
             SettingsView()
@@ -134,7 +135,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                        messageRepository: msgRepo)
     }()
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            NotificationCenter.default.post(name: .openMemoryWindow, object: nil)
+        }
+        return true
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let showDock = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
+        NSApp.setActivationPolicy(showDock ? .regular : .accessory)
+
         let repo = appState.sourceRepository
         let embedRepo = appState.embeddingRepository
         let embedService = appState.embeddingService

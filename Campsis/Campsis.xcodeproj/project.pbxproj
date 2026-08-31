@@ -6,6 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FA14E85130455C7C00032626 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA000003303E00000063E808 /* GRDB */; };
+		FA14E85230455C7C00032626 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = AA000004303E00000063E808 /* KeyboardShortcuts */; };
+		FA14E85330455C7C00032626 /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = AA000007303E00000063E808 /* Transformers */; };
+		FA14E85430455C7C00032626 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = AA000009303E00000063E808 /* MLXLLM */; };
+		FA14E85530455C7C00032626 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = AA000010303E00000063E808 /* MLXLMCommon */; };
+		FA14E85630455C7C00032626 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = AA000012303E00000063E808 /* MLXHuggingFace */; };
+		FA14E85730455C7C00032626 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = AA000013303E00000063E808 /* HuggingFace */; };
+		FA14E85830455C7C00032626 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA000005303E00000063E808 /* GRDB */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		FA557E62303DACD20063E808 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +40,30 @@
 		FA557E6B303DACD20063E808 /* CampsisUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CampsisUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FA14E8C030455CDB00032626 /* Exceptions for "Campsis" folder in "CampsisTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Campsis.icon,
+			);
+			target = FA557E60303DACD20063E808 /* CampsisTests */;
+		};
+		FA14E8C130455CDB00032626 /* Exceptions for "Campsis" folder in "CampsisUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Campsis.icon,
+			);
+			target = FA557E6A303DACD20063E808 /* CampsisUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FA557E56303DACD10063E808 /* Campsis */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FA14E8C030455CDB00032626 /* Exceptions for "Campsis" folder in "CampsisTests" target */,
+				FA14E8C130455CDB00032626 /* Exceptions for "Campsis" folder in "CampsisUITests" target */,
+			);
 			path = Campsis;
 			sourceTree = "<group>";
 		};
@@ -52,6 +84,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA14E85730455C7C00032626 /* HuggingFace in Frameworks */,
+				FA14E85630455C7C00032626 /* MLXHuggingFace in Frameworks */,
+				FA14E85530455C7C00032626 /* MLXLMCommon in Frameworks */,
+				FA14E85430455C7C00032626 /* MLXLLM in Frameworks */,
+				FA14E85330455C7C00032626 /* Transformers in Frameworks */,
+				FA14E85230455C7C00032626 /* KeyboardShortcuts in Frameworks */,
+				FA14E85130455C7C00032626 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +98,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA14E85830455C7C00032626 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -407,7 +447,7 @@
 		FA557E76303DACD20063E808 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Campsis;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -418,7 +458,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Campsis;
-				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -441,7 +480,7 @@
 		FA557E77303DACD20063E808 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Campsis;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -452,7 +491,6 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Campsis;
-				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

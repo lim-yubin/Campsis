@@ -6,10 +6,12 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsView()
                 .tabItem { Label("일반", systemImage: "gear") }
+            AISettingsView()
+                .tabItem { Label("AI", systemImage: "sparkles") }
             ShortcutSettingsView()
                 .tabItem { Label("단축키", systemImage: "keyboard") }
         }
-        .frame(width: 450, height: 280)
+        .frame(width: 460, height: 340)
     }
 }
 
@@ -30,6 +32,94 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+}
+
+struct AISettingsView: View {
+    @AppStorage("aiProvider") private var providerRaw = AIProvider.local.rawValue
+    @State private var apiKey: String = ""
+    @State private var savedKeyMasked: String?
+
+    private var provider: AIProvider {
+        AIProvider(rawValue: providerRaw) ?? .local
+    }
+
+    var body: some View {
+        Form {
+            Section("답변 생성 모델") {
+                Picker("생성 엔진", selection: $providerRaw) {
+                    ForEach(AIProvider.allCases) { p in
+                        Text(p.label).tag(p.rawValue)
+                    }
+                }
+                .onChange(of: providerRaw) { _, _ in
+                    NotificationCenter.default.post(name: .aiSettingsChanged, object: nil)
+                }
+                Text(provider.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if provider == .luna {
+                Section("OpenAI API 키") {
+                    SecureField("sk-…", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        if let masked = savedKeyMasked {
+                            Label("저장됨: \(masked)", systemImage: "checkmark.seal")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("키가 저장되어 있지 않습니다.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("저장") { saveKey() }
+                            .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if savedKeyMasked != nil {
+                            Button("삭제", role: .destructive) { clearKey() }
+                        }
+                    }
+                    Text("키는 이 기기의 Keychain에만 안전하게 저장되며 외부로 전송되지 않습니다. platform.openai.com에서 발급받을 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .onAppear(perform: loadKey)
+    }
+
+    private func loadKey() {
+        if let key = KeychainHelper.openAIKey {
+            savedKeyMasked = maskKey(key)
+        } else {
+            savedKeyMasked = nil
+        }
+    }
+
+    private func saveKey() {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if KeychainHelper.set(trimmed, for: KeychainHelper.openAIAccount) {
+            savedKeyMasked = maskKey(trimmed)
+            apiKey = ""
+            NotificationCenter.default.post(name: .aiSettingsChanged, object: nil)
+        }
+    }
+
+    private func clearKey() {
+        KeychainHelper.remove(KeychainHelper.openAIAccount)
+        savedKeyMasked = nil
+        apiKey = ""
+        NotificationCenter.default.post(name: .aiSettingsChanged, object: nil)
+    }
+
+    private func maskKey(_ key: String) -> String {
+        guard key.count > 8 else { return "••••" }
+        return String(key.prefix(3)) + "••••" + String(key.suffix(4))
     }
 }
 

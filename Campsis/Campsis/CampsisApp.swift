@@ -193,6 +193,8 @@ final class AppState {
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: CaptureCoordinator?
     private var processingQueue: ProcessingQueue?
+    private var searchEngine: VectorSearchEngine?
+    private var mlxContainer: ModelContainer?
     @MainActor let appState: AppState = {
         let db = try! AppDatabase.makeDefault()
         let repo = SourceRepository(dbQueue: db.dbQueue)
@@ -227,6 +229,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator = CaptureCoordinator(repository: repo, processingQueue: nil)
         NSLog("[Campsis] Coordinator initialized, shortcuts registered")
 
+        NotificationCenter.default.addObserver(
+            forName: .aiSettingsChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.configureChatEngine()
+            }
+        }
+
         Task {
             await self.initializeModels(repo: repo, embedRepo: embedRepo, embedService: embedService)
         }
@@ -239,14 +249,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let mlxGenerator = MLXGenerator()
         var generator: TextGenerator = mlxGenerator
 
-        var mlxContainer: ModelContainer?
+        var loadedContainer: ModelContainer?
         do {
             try await mlxGenerator.preload(onProgress: { fraction in
                 Task { @MainActor in
                     state.modelStatus = fraction < 1.0 ? .downloading(fraction) : .loading
                 }
             })
-            mlxContainer = await mlxGenerator.getLoadedContainer()
+            loadedContainer = await mlxGenerator.getLoadedContainer()
             await MainActor.run { state.modelStatus = .ready }
             NSLog("[Campsis] MLX model loaded — using Qwen3-4B for analysis and chat")
         } catch {
@@ -273,38 +283,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         coordinator?.updateProcessingQueue(queue)
 
-        let searchEngine = VectorSearchEngine(
+        let engine = VectorSearchEngine(
             embeddingService: embedService,
             embeddingRepository: embedRepo,
             sourceRepository: repo
         )
 
-        if let container = mlxContainer {
-            let chatEngine = MLXChatEngine(
-                searchEngine: searchEngine,
-                conversationRepository: appState.conversationRepository,
-                messageRepository: appState.messageRepository,
-                sourceRepository: repo,
-                modelContainer: container
-            )
-            await MainActor.run {
-                appState.chatEngineRef = chatEngine
-            }
-        } else if #available(macOS 26.0, *) {
-            let chatEngine = AppleFMChatEngine(
-                searchEngine: searchEngine,
-                conversationRepository: appState.conversationRepository,
-                messageRepository: appState.messageRepository,
-                sourceRepository: repo
-            )
-            await MainActor.run {
-                appState.chatEngineRef = chatEngine
-            }
+        await MainActor.run {
+            self.searchEngine = engine
+            self.mlxContainer = loadedContainer
+            self.configureChatEngine()
         }
 
         Task {
             await queue.processAllPending()
             await queue.embedAllMissing()
+        }
+    }
+
+    /// 설정(AI 제공자 + API 키)에 따라 채팅 엔진을 구성한다. 설정 변경 시 재호출된다.
+    @MainActor
+    private func configureChatEngine() {
+        guard let searchEngine else { return }
+
+        let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.local.rawValue
+        let provider = AIProvider(rawValue: providerRaw) ?? .local
+
+        if provider == .luna, let key = AICredentials.openAIKey, !key.isEmpty {
+            appState.chatEngineRef = LunaChatEngine(
+                searchEngine: searchEngine,
+                messageRepository: appState.messageRepository,
+                apiKey: key
+            )
+            NSLog("[Campsis] Chat engine → GPT-5.6 Luna (cloud)")
+            return
+        }
+
+        if let container = mlxContainer {
+            appState.chatEngineRef = MLXChatEngine(
+                searchEngine: searchEngine,
+                conversationRepository: appState.conversationRepository,
+                messageRepository: appState.messageRepository,
+                sourceRepository: appState.sourceRepository,
+                modelContainer: container
+            )
+            NSLog("[Campsis] Chat engine → local MLX (Qwen3-4B)")
+        } else if #available(macOS 26.0, *) {
+            appState.chatEngineRef = AppleFMChatEngine(
+                searchEngine: searchEngine,
+                conversationRepository: appState.conversationRepository,
+                messageRepository: appState.messageRepository,
+                sourceRepository: appState.sourceRepository
+            )
+            NSLog("[Campsis] Chat engine → Apple FM fallback")
         }
     }
 }

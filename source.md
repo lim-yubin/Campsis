@@ -117,6 +117,18 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 
 **기술:** Qwen3-4B (MLX, 온디바이스 128K 컨텍스트), VectorSearch, SQLite 대화 저장
 
+### AI 엔진 선택
+
+답변을 만드는 AI를 상황에 맞게 고를 수 있습니다. 검색과 저장은 언제나 기기 안에서 이뤄지고, "답변 생성"만 원하는 엔진에 맡깁니다.
+
+- 로컬 AI (Qwen3-4B) — 완전 오프라인, 데이터가 기기를 떠나지 않음
+- 클라우드 AI (GPT-5.6 Luna) — 더 높은 답변 품질, 낮은 기기 부담
+- 내 키 연결(BYOK) — 본인 OpenAI 키를 설정에 입력하면 그 키로 동작
+- 키는 macOS 키체인에 안전하게 보관 — 앱에 심지 않음
+- 클라우드로는 전체 데이터가 아닌, 질문과 관련된 기억 조각만 전송
+
+**기술:** ChatEngineProtocol 추상화(로컬 MLX ↔ 클라우드 Luna 런타임 전환), Keychain, AICredentials 계층 키 관리
+
 ### 소스 상세 보기
 
 저장된 기억 하나하나를 상세하게 확인할 수 있습니다.
@@ -159,6 +171,7 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 | 텍스트 감지 | Accessibility API (AX) |
 | OCR | Apple Vision Framework |
 | AI 분석 | Qwen3-4B-4bit via MLX (Apple FM 폴백) |
+| AI 답변 생성 | 로컬 Qwen3-4B ↔ 클라우드 GPT-5.6 Luna 선택 (BYOK) |
 | 임베딩 | Core ML (bge-m3 fp16, 1024-dim) |
 | 토크나이저 | swift-transformers (XLM-RoBERTa) |
 | 벡터 검색 | Accelerate framework (vDSP) |
@@ -179,5 +192,6 @@ ChatGPT처럼 대화하며 기억을 검색합니다. 후속 질문도 가능합
 | Phase 4 | Quick Note + 파일 가져오기 | 완료 |
 | Phase 4.5 | 대화형 UI (Chat) | 완료 |
 | Phase 5.5 | UX 개선 1차 (스트리밍, 온보딩, 검색 등) | 완료 |
+| Phase 7 | 클라우드 생성(Luna) + AI 엔진 선택 + MD 지식베이스 | 진행중 |
 | Phase 5 | 실사용 검증 + 최적화 | 진행중 |
-| Phase 6 | 릴리스 + 배포 | 예정 |
+| Phase 6 | 릴리스 + 배포 (브라우저 다운로드 + 웹 대시보드) | 예정 |

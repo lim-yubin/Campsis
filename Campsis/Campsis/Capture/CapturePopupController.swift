@@ -11,7 +11,9 @@ final class CapturePopupController {
         NotificationCenter.default.addObserver(
             forName: .captureSaved, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.showSavedToast()
+            MainActor.assumeIsolated {
+                self?.showSavedToast()
+            }
         }
     }
 

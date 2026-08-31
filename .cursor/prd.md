@@ -2024,6 +2024,17 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D33  | 커스텀 브랜드 색상(#F94315) 미적용, 시스템 색상 유지   | 사용자 요청으로 원복. 색상은 `AppTheme.swift`의 semantic 토큰 1곳에 집약해 향후 변경 용이하게 유지                                         |
 | D34  | 최초 실행 온보딩 + 모델 상태 표시 추가 (Phase 5.5)   | 첫인상 개선. `hasCompletedOnboarding`(UserDefaults) 게이트, `AppState.modelStatus`로 다운로드 진행률/로딩/준비 상태를 메뉴바에 노출        |
 | D35  | UI 텍스트 한국어 통일 (Phase 5.5)                    | 영어/한국어 혼용 제거. 기본 대화 제목도 "새 채팅"으로 변경                                                                                 |
+| D36  | 생성(Answer/Analysis)을 GPT-5.6 Luna(클라우드)로 이전 (Phase 7) | 로컬 Qwen3-4B의 품질 한계 + RAM/용량 부담 해소. 무거운 "생성"만 클라우드로, 임베딩·검색·저장은 로컬 유지하는 하이브리드. `ChatEngineProtocol`에 `LunaChatEngine`(OpenAI Chat Completions) 추가. 로컬(MLX)·Apple FM 폴백 유지 |
+| D37  | 임베딩은 로컬 bge-m3 유지 (클라우드 이전 안 함)       | 임베딩은 캡처마다 실행 → 클라우드로 옮기면 캡처마다 네트워크·과금·전체 전송(프라이버시 훼손). bge-m3는 하드웨어 부담 작고(단발 forward) 재임베딩 무료·오프라인. §9.5 재색인 정책상 교체 지양. Luna는 임베딩 미지원(`v1/embeddings: Not supported`) |
+| D38  | BYOK(사용자 OpenAI 키) 우선, 제공 모델은 Luna 단일    | 초기엔 서버 없이 앱이 OpenAI 직접 호출(운영자 원가 0). 키는 Keychain 저장, 앱 번들에 미포함. 추후 사용자 키 입력 + 모델 선택 옵션. 운영자 부담(방식1)은 프록시 서버 필요 → 유료화 시점에 검토. **→ D43~D46에서 3-티어(BYOK/Free/Pro) + Supabase 프록시 + 웹 대시보드 배포로 구체화** |
+| D39  | 저장 구조 재정의: MD(진실원) + 벡터(파생) 이중 저장 (Phase 7) | Luna로 요약·구조화한 **편집 가능한 .md**를 진실원으로 저장, 벡터는 MD에서 파생된 검색 인덱스. MD 수정 시 해당 항목만 재임베딩. Karpathy식 LLM wiki/MCP 확장 대비 (§2.3 원본/해석 분리 원칙 강화) |
+| D40  | MD 생성은 백그라운드/지연 처리                        | 캡처 즉시 로컬 OCR 텍스트로 저장·임베딩해 검색은 바로 가능. Luna MD 생성은 온라인 시 `ProcessingQueue`에서 보강. 캡처 즉각성·오프라인 캡처 보장 |
+| D41  | OCR을 프로토콜로 추상화 (Windows 확장 대비)           | `OCRProcessor` 프로토콜 + AppleVisionOCR(macOS 로컬 기본) / CloudVisionOCR(Luna 이미지입력, 선택적). 이미지 이해·맥락 해석은 Luna 이미지입력으로. Apple Vision 하드코딩 제거 |
+| D42  | MVP 파일 지원 범위 축소: PDF/MD/이미지                | docx·xlsx는 파서 공수 대비 우선순위 낮아 보류, 음성(STT)도 보류. §5.5/§16 대비 축소 |
+| D43  | 요금제 3-티어: BYOK / Free / Pro (D38 확장)           | 키 위치로 플랜 구분. **BYOK**=사용자 키, 앱이 직접 OpenAI 호출(서버 미경유, 로그인 불필요). **Free**=제작자 키 + 사용량 쿼터 + 제한 모델(프록시 경유, 로그인 필요). **Pro**=제작자 키 + 고급 모델(Luna) 구독. Free·Pro는 제작자 키를 클라이언트에 절대 노출하지 않음 → 프록시 필수 |
+| D44  | 키 해석 계층화: `AICredentials` 리졸버 (구현)         | 우선순위 ①사용자 Keychain(BYOK) ②(DEBUG 전용)로컬 `.env` ③(미래)프록시 서버. `.env` 로더는 `#if DEBUG`로 릴리즈 빌드에서 컴파일 제외 → 제작자 키가 배포 바이너리에 절대 포함되지 않음. `AICredentials.swift` |
+| D45  | Free/Pro 백엔드는 Supabase (Auth + Edge Function 프록시) | 회원가입/로그인/세션은 Supabase Auth, 플랜·사용량은 Postgres(+RLS), 제작자 키 대리 호출·쿼터·미터링은 Edge Function. 앱은 로그인 후 JWT를 Keychain 저장 → 서버 호출에 첨부. 인증·구독 검증은 **서버가** 판단(클라이언트 불신) |
+| D46  | 배포 UX: 브라우저 다운로드 + 웹 대시보드 + 딥링크 로그인 | 회원가입·플랜·결제는 웹에서 처리, 앱은 로그인만. 데스크톱 로그인은 커스텀 URL 스킴(`campsis://auth?token=…`) 딥링크로 웹 인증 결과 수신. 초기 웹 대시보드 없이 앱 내 설정 화면 + 결제사 관리페이지로 대체 가능. §19.2/§19.5 보강 |
 
 ### 28.3.1 Phase 0 진행 현황
 

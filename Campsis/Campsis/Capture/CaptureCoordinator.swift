@@ -26,7 +26,9 @@ final class CaptureCoordinator {
         NotificationCenter.default.addObserver(
             forName: .triggerQuickMemory, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.handleQuickMemory()
+            MainActor.assumeIsolated {
+                self?.handleQuickMemory()
+            }
         }
 
         KeyboardShortcuts.onKeyUp(for: .openMemory) {

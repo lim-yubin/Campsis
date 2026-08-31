@@ -244,7 +244,9 @@ struct MemoriesView: View {
                     ) {
                         ForEach(group.sources) { source in
                             MemoryRowView(source: source)
+                                .contentShape(Rectangle())
                                 .onTapGesture { selectedSource = source }
+                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
                                 .contextMenu {
                                     Button(role: .destructive) {
                                         sourceToDelete = source
@@ -337,6 +339,7 @@ enum SourceFilter: String, CaseIterable, Identifiable {
 
 struct MemoryRowView: View {
     let source: Source
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -362,11 +365,29 @@ struct MemoryRowView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            if isHovered {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
 
             statusBadge
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color.primary.opacity(0.07) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isHovered = hovering
+            }
+        }
     }
 
     private var iconName: String {

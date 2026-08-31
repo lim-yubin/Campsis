@@ -96,9 +96,11 @@ Apple Foundation Models만으로 파이프라인을 완성한다. MLX는 도입�
 
 ---
 
-## Phase 3.5 — MLX LLM 통합 `완료`
+## Phase 3.5 — MLX LLM 통합 `완료` → `제거됨 (2026-09-01)`
 
-Apple FM의 제한된 컨텍스트/품질 문제로 Qwen3-4B-4bit (MLX) 직접 통합 결정.
+Apple FM의 제한된 컨텍스트/품질 문제로 Qwen3-4B-4bit (MLX) 직접 통합했으나,
+품질·하드웨어 부담·앱 용량 문제로 **2026-09-01 로컬 생성 LLM(MLX/Qwen·Apple FM)을 전면 제거**하고
+생성/채팅을 GPT-5.6 Luna(클라우드) 단일로 일원화했다(D49). 아래는 이력 보존용 기록이다.
 
 | #     | 작업                                         | 상태 | 비고                                                  |
 | ----- | -------------------------------------------- | ---- | ----------------------------------------------------- |
@@ -186,16 +188,16 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 | --- | ------------------------------------------------- | -------- | ----------------------------------------------------------- |
 | 7.1 | OpenAI API 키 Keychain 저장                       | 완료     | BYOK 기반, 키는 앱 번들에 심지 않음. KeychainHelper         |
 | 7.2 | LunaChatEngine (OpenAI Chat Completions 스트리밍) | 완료     | ChatEngineProtocol 준수, 검색·컨텍스트·인용 재사용          |
-| 7.3 | 설정: AI 제공자 선택 + API 키 입력                 | 완료     | 로컬 Qwen ↔ GPT-5.6 Luna, 런타임 전환. AISettingsView      |
+| 7.3 | 설정: API 키 입력                                 | 완료     | ~~로컬 Qwen ↔ Luna 전환~~ → 로컬 LLM 제거(D49)로 Luna 단일. AISettingsView는 API 키 섹션만 |
 | 7.4 | 엔진 선택/전환 배선 (AppState/AppDelegate)         | 완료     | 설정 기반 엔진 구성, 폴백 유지. configureChatEngine        |
 | 7.4.1 | AICredentials 계층 키 리졸버                       | 완료     | 키체인(BYOK) → (DEBUG).env → (미래)프록시. 릴리즈 컴파일 제외 |
 | 7.5 | MD 진실원 저장 계층                                | 완료     | 2026-09-01. Source에 markdown_path/status/updated_at, v5 마이그레이션, AppPaths/markdowns, LunaMarkdownGenerator, SourceDetailView 정리본/원본 세그먼트 |
-| 7.6 | MD 백그라운드 생성 (지연 처리)                     | 완료     | 2026-09-01. 캡처→OCR+임베딩 즉시 완료, generateMissingMarkdown가 온라인+Luna 구성 시 백그라운드 보강 |
-| 7.7 | OCRProcessor 프로토콜화 + Luna 비전 이해            | 완료     | 2026-09-01. OCRProcessing 프로토콜 + AppleVisionOCR(로컬 기본). 이미지 "이해"는 7.9 Luna 비전이 담당(별도 CloudVisionOCR 불필요) |
+| 7.6 | MD 백그라운드 생성 (지연 처리)                     | 완료     | 2026-09-01. 이후 7.7에서 Luna 단일 파이프라인으로 통합(캡처→Luna 1회 호출→MD→임베딩) |
+| 7.7 | AppleVision OCR 제거 + Luna 단일 이해로 재정의      | 완료     | 2026-09-01. OCRProcessor.swift·Vision 의존성 제거. 캡처된 모든 소스를 Luna 비전+MD 단일 호출로 이해(OCR+요약+태그+MD). always-online 전제(offline/no-key 미지원) |
 | 7.8 | MD 수정 시 재임베딩 (bge-m3)                        | 완료     | 2026-09-01. SearchableTextBuilder가 MD 우선, MD 생성/편집 시 해당 항목만 delete+재임베딩 (source당 벡터 1개 유지) |
-| 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 완료     | 2026-09-01. LunaMarkdownGenerator가 스크린샷/이미지 파일을 비전 입력(data URL)으로 첨부 → 단일 호출로 OCR+이해+맥락+태깅→MD. 로컬 OCR은 즉시검색용으로 유지 |
+| 7.9 | 이미지+메모+메타데이터 → Luna 통합 이해            | 완료     | 2026-09-01. LunaMarkdownGenerator가 스크린샷/이미지 파일을 비전 입력(data URL)으로 첨부 → 단일 호출로 OCR+이해+맥락+태깅→구조화 노트(title/summary/tags/markdown, JSON) |
 
-**결정:** 생성=Luna(클라우드), 임베딩=bge-m3(로컬 유지), OCR=로컬 기본+Luna 선택, MD 생성=백그라운드/지연. (상세 §28 D36~)
+**결정:** 생성=Luna(클라우드), 임베딩=bge-m3(로컬 유지), 이해(OCR/요약/태그/MD)=Luna 단일 호출, offline/no-key 미지원. (상세 §28 D36~)
 
 ---
 
@@ -242,6 +244,9 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-01 | **채팅 출처 UX 개선 + 인스펙터 분할 보기.** 답변 본문의 인라인 `[1]` 인용 제거(LunaChatEngine 지시문 변경 + `stripCitations`로 방어적 스트립, 레거시 메시지도 표시 직전 정리). 출처는 관련도순으로만 노출: `relevantSources`가 최상위 점수 대비 상대 마진(0.1)·절대 하한(0.4)을 적용해 무관한 출처가 무조건 5개 노출되던 문제 해결(LLM 입력·표시·저장에 동일 집합 사용). 오른쪽 `.inspector` 패널 신규(InspectorPanelView/SourcePreviewView): 말풍선 하단 출처 클릭 시 정리본(MD) 미리보기, 세그먼트로 메모리 목록↔정리본 전환. 채팅 툴바에 "메모리 패널" 토글(sidebar.right)로 메모리+채팅 동시 보기. AppState에 showInspector/inspectorSource/inspectorMode 추가. 인스펙터는 읽기전용, 편집은 기존 SourceDetailView 유지. 빌드·테스트 통과 |
+| 2026-09-01 | **로컬 생성 LLM 전면 제거 (Qwen3-4B/MLX + Apple FM).** 채팅·생성을 Luna(클라우드) 단일로 일원화(D49). 삭제: MLXGenerator/AppleFMGenerator/TextGenerator/AppleFMChatEngine, ChatEngine.swift의 MLXChatEngine(ChatResponse/ChatEngineProtocol은 유지). AIProvider에서 `.local` 제거→`.luna`만, SettingsView는 엔진 선택 Picker 제거하고 API 키 섹션 상시 표시. CampsisApp: MLX 프리로드/mlxContainer 제거, modelStatus를 임베딩(bge-m3) 로드 기준으로 재정의, configureChatEngine은 키 있으면 Luna·없으면 nil(설정 안내). project.pbxproj에서 mlx-swift-lm·swift-huggingface 패키지 제거(swift-transformers는 임베딩 토크나이저용으로 유지). 디스크 HF 캐시의 Qwen 모델 3종(Qwen3-4B-4bit·Reranker-0.6B·Embedding-0.6B, 약 4.3G) 삭제. 효과: 앱 번들·의존성·메모리 사용 대폭 감소. 빌드·테스트 통과 |
+| 2026-09-01 | **Luna 단일 이해 파이프라인 (AppleVision OCR 제거).** 7.7 재정의: OCRProcessor.swift·Vision 의존성 삭제, 로컬 요약/태그 생성(TextGenerator.analyze) 제거. ProcessingQueue는 캡처된 소스를 Luna 1회 호출로 이해(OCR+요약+태그+MD)→MD 저장→bge-m3 임베딩. MarkdownGenerator가 구조화 GeneratedNote(title/summary/tags/markdown, JSON response_format) 반환. CampsisApp 배선 정리(generator 인자 제거, updateMarkdownGenerator→processAllPending, MLX 프리로드는 로컬 채팅용으로 유지). 테스트를 MockMarkdownGenerator로 교체. 전제: always-online(offline/no-key 미지원). 트레이드오프: 모든 소스가 Luna 왕복 후 검색 색인(캡처 직후 짧은 지연) |
 | 2026-09-01 | Phase 7 완료(7.7·7.9). OCRProcessing 프로토콜 + AppleVisionOCR로 OCR 추상화(Windows 확장 대비), LunaMarkdownGenerator가 스크린샷/이미지 파일을 비전 입력(base64 data URL)으로 첨부 → 단일 Luna 호출로 OCR+이해+맥락+태깅→MD(7.9). 로컬 Apple Vision OCR은 캡처 즉시 검색용으로 유지. Phase 7 전체 완료 → 상태 `완료`, 현재 위치 갱신 |
 | 2026-09-01 | Phase 7.8 완료: MD 수정 시 재임베딩. SearchableTextBuilder가 MD(진실원) 있으면 MD 기준으로 검색 텍스트 구성, MD 자동생성(Luna) 및 수동편집(⌘S) 시 해당 소스만 delete→재임베딩(source당 벡터 1개 유지). 편집한 정리본이 즉시 의미검색에 반영됨. ProcessingQueue.reembedSource(id:) 추가 |
 | 2026-09-01 | UX: 사이드바 계층화(메모리/채팅 섹션 분리) + 메모리 상세 흐름 개편. 상세를 모달(sheet)→인라인 푸시(NavigationStack)로 전환, 정리본(MD) 우선 표시 + 툴바 "편집/직접 작성"(⌘S 저장)으로 MD 직접 편집 가능, 원본은 세그먼트로 확인. MD 생성 속도 개선: LunaMarkdownGenerator에 reasoning_effort=low. Source에 Hashable 추가(navigationDestination). 주의: MD 편집 저장은 파일·메타데이터만 갱신하며 검색 재임베딩은 7.8에서 처리 |

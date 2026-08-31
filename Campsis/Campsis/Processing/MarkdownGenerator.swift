@@ -1,11 +1,19 @@
 import Foundation
 
+/// Luna 단일 이해 결과: 제목·요약·태그·본문(MD)을 한 번의 호출로 얻는다.
+nonisolated struct GeneratedNote: Sendable {
+    let title: String?
+    let summary: String?
+    let tags: [String]
+    let markdown: String
+}
+
 /// 캡처한 소스를 "편집 가능한 마크다운 지식 노트(진실원)"로 변환한다 (D39).
 ///
 /// 백엔드는 교체 가능하도록 프로토콜로 추상화한다. 현재는 GPT-5.6 Luna(클라우드)만 구현.
 /// 로컬 전용 모드에서는 주입하지 않아(nil) MD 생성을 건너뛴다.
 protocol MarkdownGenerator: Sendable {
-    func generate(from source: Source) async throws -> String
+    func generate(from source: Source) async throws -> GeneratedNote
 }
 
 nonisolated enum MarkdownGeneratorError: LocalizedError {
@@ -36,18 +44,22 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
     private let maxInputChars = 12000
 
     private let instructions = """
-        You convert a user's captured memory into a clean, editable Markdown knowledge note. \
+        You convert a user's captured memory into a structured knowledge note. \
+        Respond with a SINGLE JSON object with exactly these keys:
+        {
+          "title": string — a concise title capturing the essence,
+          "summary": string — 1-2 sentence summary,
+          "tags": string[] — 2-5 relevant keywords,
+          "markdown": string — the full note in Markdown (H1 title, short summary, then headings/bullets/bold as helpful)
+        }
         Rules:
-        1. Output ONLY Markdown. Do NOT wrap the whole note in a code block.
-        2. Start with a concise H1 title (#) that captures the essence.
-        3. Add a short 1-2 sentence summary, then organize the content with headings, \
-           bullet points, and bold where helpful.
-        4. Be faithful to the source. Do NOT invent facts that are not present. \
+        1. Output ONLY the JSON object. No prose or code fences around it.
+        2. Inside "markdown", do NOT wrap the whole note in a code block.
+        3. Be faithful to the source. Do NOT invent facts that are not present. \
            If the source is short, keep the note short.
-        5. Preserve important details (names, numbers, URLs, code).
-        6. Match the language of the source (Korean source → Korean note).
-        7. End with a short "태그:" line listing 2-5 relevant keywords.
-        8. If an image is attached, read ALL visible text in it and interpret its \
+        4. Preserve important details (names, numbers, URLs, code).
+        5. Match the language of the source (Korean source → Korean note).
+        6. If an image is attached, read ALL visible text in it and interpret its \
            meaningful content (UI, chart, document, photo) faithfully — this replaces separate OCR.
         """
 
@@ -56,7 +68,7 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
         self.model = model
     }
 
-    func generate(from source: Source) async throws -> String {
+    func generate(from source: Source) async throws -> GeneratedNote {
         let input = Self.buildInput(from: source, limit: maxInputChars)
         let imageDataURL = Self.imageDataURL(for: source)
         guard !input.isEmpty || imageDataURL != nil else { throw MarkdownGeneratorError.emptyInput }
@@ -79,7 +91,31 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
             ["role": "user", "content": userContent],
         ]
         let raw = try await completeChat(messages: messages)
-        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.parseNote(from: raw)
+    }
+
+    /// Luna의 JSON 응답을 GeneratedNote로 파싱한다. 파싱 실패 시 전체를 markdown으로 폴백.
+    private nonisolated static func parseNote(from raw: String) -> GeneratedNote {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let markdown = (json["markdown"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let markdown, !markdown.isEmpty {
+                let title = (json["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let summary = (json["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let tags = (json["tags"] as? [String])?
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty } ?? []
+                return GeneratedNote(
+                    title: title?.isEmpty == false ? title : nil,
+                    summary: summary?.isEmpty == false ? summary : nil,
+                    tags: tags,
+                    markdown: markdown
+                )
+            }
+        }
+        // 폴백: JSON이 아니거나 markdown 키가 없으면 전체 응답을 노트 본문으로 사용.
+        return GeneratedNote(title: nil, summary: nil, tags: [], markdown: trimmed)
     }
 
     /// 소스에 이미지(스크린샷/이미지 파일)가 있으면 base64 data URL로 인코딩한다.
@@ -147,6 +183,7 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
             "messages": messages,
             "stream": false,
             "reasoning_effort": "low",
+            "response_format": ["type": "json_object"],
         ]
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"

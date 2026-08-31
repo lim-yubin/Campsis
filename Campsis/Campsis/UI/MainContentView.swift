@@ -16,11 +16,17 @@ struct MainContentView: View {
     @State private var showOnboarding = false
 
     var body: some View {
+        @Bindable var appState = appState
+
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
         } detail: {
             detailView
+        }
+        .inspector(isPresented: $appState.showInspector) {
+            InspectorPanelView()
+                .inspectorColumnWidth(min: 280, ideal: 360, max: 520)
         }
         .overlay {
             if isDragOver { dropOverlay }
@@ -180,6 +186,17 @@ struct MainContentView: View {
             ChatView(conversationId: id)
                 .id(id)
                 .navigationTitle(conversations.first(where: { $0.id == id })?.title ?? "채팅")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            appState.inspectorMode = .memories
+                            appState.showInspector.toggle()
+                        } label: {
+                            Label("메모리 패널", systemImage: "sidebar.right")
+                        }
+                        .help("메모리를 채팅과 함께 보기")
+                    }
+                }
         case .memories:
             MemoriesView()
         case nil:

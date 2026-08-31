@@ -22,7 +22,8 @@ actor LunaChatEngine: ChatEngineProtocol {
 
         Rules:
         1. If relevant sources (memories) are provided, base your answer primarily on them. \
-           Cite source numbers like [1], [2] when referencing specific memories.
+           Do NOT insert bracketed source numbers like [1] or [2] in your answer — \
+           the app shows the source list separately below the message.
         2. If no relevant sources are found, answer using your general knowledge. \
            In this case, start your answer with "💡 메모리에 관련 정보가 없어 일반 지식으로 답변합니다." on its own line.
         3. If sources are partially relevant, combine memory-based info with general knowledge, \
@@ -44,19 +45,40 @@ actor LunaChatEngine: ChatEngineProtocol {
     }
 
     func send(query: String, conversationId: String) async throws -> ChatResponse {
-        let results = try await searchEngine.search(query: query, topN: 5)
+        let results = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
         let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
         let answer = try await completeChat(messages: messages)
-        return ChatResponse(answer: answer.trimmingCharacters(in: .whitespacesAndNewlines), sources: results)
+        return ChatResponse(answer: Self.stripCitations(answer), sources: results)
     }
 
     func sendStream(query: String, conversationId: String,
                     onToken: @Sendable @escaping (String) -> Void) async throws -> ChatResponse {
-        let results = try await searchEngine.search(query: query, topN: 5)
+        let results = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
         let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
 
         let answer = try await streamChat(messages: messages, onToken: onToken)
-        return ChatResponse(answer: answer, sources: results)
+        return ChatResponse(answer: Self.stripCitations(answer), sources: results)
+    }
+
+    // MARK: - 출처 필터링 / 인용 정리
+
+    /// 검색 결과 중 "관련 있는" 출처만 남긴다. 최상위 점수 대비 상대 마진과 절대 하한을
+    /// 함께 적용해, 무관한 결과가 무조건 노출되는 것을 막는다. (상수는 실사용 후 튜닝 가능)
+    nonisolated private static let relevanceFloor: Float = 0.4
+    nonisolated private static let relativeMargin: Float = 0.1
+
+    nonisolated static func relevantSources(from results: [SearchResult]) -> [SearchResult] {
+        guard let top = results.first?.score else { return [] }
+        let cutoff = max(relevanceFloor, top - relativeMargin)
+        return Array(results.filter { $0.score >= cutoff }.prefix(5))
+    }
+
+    /// 답변 본문에 남을 수 있는 대괄호 번호 인용([1], [23] 등)을 제거한다.
+    /// 마크다운 링크 `[텍스트](url)`는 숫자만 매칭하므로 영향받지 않는다.
+    nonisolated static func stripCitations(_ text: String) -> String {
+        let cleaned = text.replacingOccurrences(
+            of: #"\s?\[\d+\]"#, with: "", options: .regularExpression)
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func suggestTitle(for query: String, answer: String) async -> String? {

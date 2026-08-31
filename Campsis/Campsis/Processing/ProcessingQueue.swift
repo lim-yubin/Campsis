@@ -3,23 +3,20 @@ import Foundation
 @available(macOS 26.0, *)
 actor ProcessingQueue {
     private let repository: SourceRepository
-    private let generator: TextGenerator
     private let embeddingService: EmbeddingService
     private let embeddingRepository: EmbeddingRepository
     private let maxAttempts = 3
     private var isProcessing = false
     private var markdownGenerator: MarkdownGenerator?
-    private var isGeneratingMarkdown = false
 
-    init(repository: SourceRepository, generator: TextGenerator,
+    init(repository: SourceRepository,
          embeddingService: EmbeddingService, embeddingRepository: EmbeddingRepository) {
         self.repository = repository
-        self.generator = generator
         self.embeddingService = embeddingService
         self.embeddingRepository = embeddingRepository
     }
 
-    /// MD 생성 백엔드를 설정한다. Luna 구성 시 주입, 로컬 전용이면 nil (MD 생성 건너뜀).
+    /// 이해(Luna) 백엔드를 설정한다. Luna 구성 시 주입, 로컬 전용이면 nil (처리 대기 유지).
     func setMarkdownGenerator(_ generator: MarkdownGenerator?) {
         markdownGenerator = generator
     }
@@ -37,6 +34,9 @@ actor ProcessingQueue {
         isProcessing = true
         defer { isProcessing = false }
 
+        // Luna 미구성이면 대기 유지 (설정되면 재처리). 불필요한 조회를 피한다.
+        guard markdownGenerator != nil else { return }
+
         do {
             let pending = try repository.fetchPending(limit: 10)
             for var source in pending {
@@ -45,42 +45,32 @@ actor ProcessingQueue {
         } catch {
             NSLog("[Campsis] ProcessingQueue fetch error: \(error)")
         }
-
-        // 처리 완료 후, 온라인 + Luna 구성 시 MD를 백그라운드로 보강한다 (D40).
-        await generateMissingMarkdown()
     }
 
+    /// 캡처된 소스를 Luna 단일 호출로 이해(OCR+요약+태그+MD)하고, MD 기준으로 임베딩한다.
     private func processSource(_ source: inout Source) async {
+        guard let markdownGenerator else { return }
+
         source.processingStatus = .processing
+        source.markdownStatus = .processing
         source.processingAttempts += 1
         try? repository.updateProcessingResult(&source)
 
         do {
-            if source.screenshotPath != nil && source.ocrText == nil {
-                let ocrText = try await OCRProcessor.recognizeText(from: source)
-                source.ocrText = ocrText
-            }
-
-            let textToAnalyze = buildAnalysisInput(from: source)
-
-            if !textToAnalyze.isEmpty {
-                let analysis = try await generator.analyze(textToAnalyze)
-                source.summary = analysis.summary
-                source.topics = encodeTopics(analysis.topics)
-            }
-
+            let note = try await markdownGenerator.generate(from: source)
+            // writeMarkdown이 markdown_path/status/updated_at를 갱신한다.
+            try repository.writeMarkdown(note.markdown, for: &source)
+            source.summary = note.summary
+            source.topics = encodeTopics(note.tags)
             source.processingStatus = .completed
             try? repository.updateProcessingResult(&source)
 
             await embedSource(source)
-            NSLog("[Campsis] Processed source \(source.id): completed")
+            NSLog("[Campsis] Processed source \(source.id): completed (Luna)")
 
-        } catch TextGeneratorError.guardrailRefusal {
-            NSLog("[Campsis] Guardrail refusal for source \(source.id) (attempt \(source.processingAttempts)/\(maxAttempts))")
-            handleFailure(&source)
-
-        } catch TextGeneratorError.emptyInput {
+        } catch MarkdownGeneratorError.emptyInput {
             source.processingStatus = .completed
+            source.markdownStatus = .completed
             try? repository.updateProcessingResult(&source)
 
         } catch {
@@ -92,27 +82,13 @@ actor ProcessingQueue {
     private func handleFailure(_ source: inout Source) {
         if source.processingAttempts >= maxAttempts {
             source.processingStatus = .failed
+            source.markdownStatus = .failed
             NSLog("[Campsis] Source \(source.id) marked as failed after \(maxAttempts) attempts")
         } else {
             source.processingStatus = .pending
+            source.markdownStatus = .pending
         }
         try? repository.updateProcessingResult(&source)
-    }
-
-    private func buildAnalysisInput(from source: Source) -> String {
-        var parts: [String] = []
-
-        if let content = source.content, !content.isEmpty {
-            parts.append(content)
-        }
-        if let ocrText = source.ocrText, !ocrText.isEmpty {
-            parts.append(ocrText)
-        }
-        if let userNote = source.userNote, !userNote.isEmpty {
-            parts.append("User note: \(userNote)")
-        }
-
-        return parts.joined(separator: "\n\n")
     }
 
     private func encodeTopics(_ topics: [String]) -> String? {
@@ -176,46 +152,6 @@ actor ProcessingQueue {
             }
         } catch {
             NSLog("[Campsis] Batch embedding error: \(error)")
-        }
-    }
-
-    // MARK: - Markdown 생성 (진실원, 백그라운드)
-
-    /// MD가 없는 완료 소스들에 대해 Luna로 MD를 생성한다. Luna 미구성 시 조용히 건너뛴다.
-    func generateMissingMarkdown() async {
-        guard let markdownGenerator else { return }
-        guard !isGeneratingMarkdown else { return }
-        isGeneratingMarkdown = true
-        defer { isGeneratingMarkdown = false }
-
-        do {
-            let sources = try repository.fetchMarkdownPending(limit: 20)
-            for var source in sources {
-                await generateMarkdown(for: &source, using: markdownGenerator)
-            }
-        } catch {
-            NSLog("[Campsis] Markdown pending fetch error: \(error)")
-        }
-    }
-
-    private func generateMarkdown(for source: inout Source, using generator: MarkdownGenerator) async {
-        source.markdownStatus = .processing
-        try? repository.update(&source)
-
-        do {
-            let markdown = try await generator.generate(from: source)
-            try repository.writeMarkdown(markdown, for: &source)
-            NSLog("[Campsis] Markdown generated for source \(source.id)")
-            // MD가 진실원이 되었으므로 MD 기준으로 재임베딩한다 (D39, 7.8).
-            await embedSource(source)
-        } catch MarkdownGeneratorError.emptyInput {
-            // 정리할 내용이 없으면 실패가 아니라 완료로 둔다 (재시도 방지).
-            source.markdownStatus = .completed
-            try? repository.update(&source)
-        } catch {
-            NSLog("[Campsis] Markdown generation failed for source \(source.id): \(error)")
-            source.markdownStatus = .failed
-            try? repository.update(&source)
         }
     }
 }

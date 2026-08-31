@@ -1,6 +1,5 @@
 import SwiftUI
 import KeyboardShortcuts
-import MLXLMCommon
 
 @main
 struct CampsisApp: App {
@@ -86,6 +85,12 @@ enum ModelStatus: Equatable {
     var isReady: Bool { self == .ready }
 }
 
+/// 인스펙터 패널이 보여줄 내용. 출처 정리본 미리보기 또는 전체 메모리 목록.
+enum InspectorMode: Hashable {
+    case source
+    case memories
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -100,6 +105,11 @@ final class AppState {
     var modelStatus: ModelStatus = .idle
     var streamingText: [String: String] = [:]
     private var generationTasks: [String: Task<Void, Never>] = [:]
+
+    // 인스펙터(오른쪽 분할 패널) 상태: 출처 정리본 미리보기 ↔ 메모리 목록 탐색
+    var showInspector = false
+    var inspectorSource: Source?
+    var inspectorMode: InspectorMode = .source
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
 
@@ -126,7 +136,7 @@ final class AppState {
             let conversationRepository = await MainActor.run { appState.conversationRepository }
 
             guard let chatEngine else {
-                await self.saveAndNotify(content: "AI 모델을 로딩 중입니다. 잠시 후 다시 시도해 주세요.",
+                await self.saveAndNotify(content: "AI가 아직 준비되지 않았습니다. 설정 › AI에서 OpenAI API 키를 입력해 주세요.",
                                          sourceIds: [], conversationId: conversationId, query: query,
                                          messageRepository: messageRepository,
                                          sourceRepository: sourceRepository,
@@ -234,7 +244,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: CaptureCoordinator?
     private var processingQueue: ProcessingQueue?
     private var searchEngine: VectorSearchEngine?
-    private var mlxContainer: ModelContainer?
     @MainActor let appState: AppState = {
         let db = try! AppDatabase.makeDefault()
         let repo = SourceRepository(dbQueue: db.dbQueue)
@@ -315,34 +324,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func initializeModels(repo: SourceRepository, embedRepo: EmbeddingRepository, embedService: EmbeddingService) async {
         let state = appState
-        await MainActor.run { state.modelStatus = .idle }
+        await MainActor.run { state.modelStatus = .loading }
 
-        let mlxGenerator = MLXGenerator()
-        var generator: TextGenerator = mlxGenerator
-
-        var loadedContainer: ModelContainer?
+        // 로컬 임베딩 모델(bge-m3, CoreML)만 로드한다. 생성/채팅은 Luna(클라우드)가 담당 (D48).
         do {
-            try await mlxGenerator.preload(onProgress: { fraction in
-                Task { @MainActor in
-                    state.modelStatus = fraction < 1.0 ? .downloading(fraction) : .loading
-                }
-            })
-            loadedContainer = await mlxGenerator.getLoadedContainer()
+            try await embedService.loadIfNeeded()
             await MainActor.run { state.modelStatus = .ready }
-            NSLog("[Campsis] MLX model loaded — using Qwen3-4B for analysis and chat")
+            NSLog("[Campsis] Embedding model (bge-m3) loaded")
         } catch {
-            NSLog("[Campsis] MLX model unavailable (\(error.localizedDescription)), falling back to Apple FM")
-            if #available(macOS 26.0, *) {
-                generator = AppleFMGenerator()
-                await MainActor.run { state.modelStatus = .ready }
-            } else {
-                await MainActor.run { state.modelStatus = .failed }
-            }
+            NSLog("[Campsis] Embedding model unavailable (\(error.localizedDescription))")
+            await MainActor.run { state.modelStatus = .failed }
         }
 
         let queue = ProcessingQueue(
             repository: repo,
-            generator: generator,
             embeddingService: embedService,
             embeddingRepository: embedRepo
         )
@@ -362,7 +357,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         await MainActor.run {
             self.searchEngine = engine
-            self.mlxContainer = loadedContainer
             self.configureChatEngine()
         }
 
@@ -372,16 +366,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await queue.processAllPending()
             await queue.embedAllMissing()
-            await queue.generateMissingMarkdown()
         }
     }
 
-    /// 현재 설정(provider + 키)에 맞는 MD 생성기를 만든다. 로컬 전용이면 nil.
+    /// 현재 API 키에 맞는 MD 생성기를 만든다. 키가 없으면 nil (설정 후 재처리).
     @MainActor
     private func makeMarkdownGenerator() -> MarkdownGenerator? {
-        let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.local.rawValue
-        let provider = AIProvider(rawValue: providerRaw) ?? .local
-        if provider == .luna, let key = AICredentials.openAIKey, !key.isEmpty {
+        if let key = AICredentials.openAIKey, !key.isEmpty {
             return LunaMarkdownGenerator(apiKey: key)
         }
         return nil
@@ -394,47 +385,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let generator = makeMarkdownGenerator()
         Task {
             await queue.setMarkdownGenerator(generator)
-            await queue.generateMissingMarkdown()
+            await queue.processAllPending()
         }
     }
 
-    /// 설정(AI 제공자 + API 키)에 따라 채팅 엔진을 구성한다. 설정 변경 시 재호출된다.
+    /// API 키에 따라 채팅 엔진(Luna)을 구성한다. 설정 변경 시 재호출된다 (D48: 클라우드 전용).
     @MainActor
     private func configureChatEngine() {
         updateMarkdownGenerator()
 
         guard let searchEngine else { return }
 
-        let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.local.rawValue
-        let provider = AIProvider(rawValue: providerRaw) ?? .local
-
-        if provider == .luna, let key = AICredentials.openAIKey, !key.isEmpty {
+        if let key = AICredentials.openAIKey, !key.isEmpty {
             appState.chatEngineRef = LunaChatEngine(
                 searchEngine: searchEngine,
                 messageRepository: appState.messageRepository,
                 apiKey: key
             )
             NSLog("[Campsis] Chat engine → GPT-5.6 Luna (cloud)")
-            return
-        }
-
-        if let container = mlxContainer {
-            appState.chatEngineRef = MLXChatEngine(
-                searchEngine: searchEngine,
-                conversationRepository: appState.conversationRepository,
-                messageRepository: appState.messageRepository,
-                sourceRepository: appState.sourceRepository,
-                modelContainer: container
-            )
-            NSLog("[Campsis] Chat engine → local MLX (Qwen3-4B)")
-        } else if #available(macOS 26.0, *) {
-            appState.chatEngineRef = AppleFMChatEngine(
-                searchEngine: searchEngine,
-                conversationRepository: appState.conversationRepository,
-                messageRepository: appState.messageRepository,
-                sourceRepository: appState.sourceRepository
-            )
-            NSLog("[Campsis] Chat engine → Apple FM fallback")
+        } else {
+            appState.chatEngineRef = nil
+            NSLog("[Campsis] Chat engine unavailable — no API key configured")
         }
     }
 }

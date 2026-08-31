@@ -3,6 +3,7 @@ import SwiftUI
 struct MessageBubbleView: View {
     let message: Message
     let sources: [Source]
+    @Environment(AppState.self) private var appState
     @State private var showSources = false
     @State private var copied = false
 
@@ -45,7 +46,7 @@ struct MessageBubbleView: View {
     private var bubble: some View {
         Group {
             if message.role == .assistant {
-                MarkdownTextView(text: message.content)
+                MarkdownTextView(text: LunaChatEngine.stripCitations(message.content))
             } else {
                 Text(message.content)
                     .font(.body)
@@ -97,15 +98,27 @@ struct MessageBubbleView: View {
         if showSources {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(sources) { source in
-                    HStack(spacing: 8) {
-                        Image(systemName: iconName(for: source.type))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18)
-                        Text(sourceTitle(source))
-                            .font(.subheadline)
-                            .lineLimit(1)
+                    Button {
+                        appState.inspectorSource = source
+                        appState.inspectorMode = .source
+                        appState.showInspector = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: iconName(for: source.type))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 18)
+                            Text(sourceTitle(source))
+                                .font(.subheadline)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 2)
+                    .buttonStyle(.plain)
                 }
             }
             .padding(10)

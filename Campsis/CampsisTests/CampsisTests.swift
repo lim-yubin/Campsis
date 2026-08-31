@@ -190,24 +190,21 @@ struct ProcessingPipelineTests {
     }
 }
 
-// MARK: - Mock TextGenerator for testing
+// MARK: - Mock MarkdownGenerator for testing
 
-struct MockTextGenerator: TextGenerator {
+struct MockMarkdownGenerator: MarkdownGenerator {
     var shouldFail = false
-    var shouldRefuse = false
 
-    func analyze(_ text: String) async throws -> Analysis {
-        if shouldRefuse {
-            throw TextGeneratorError.guardrailRefusal
-        }
+    func generate(from source: Source) async throws -> GeneratedNote {
         if shouldFail {
-            throw TextGeneratorError.generationFailed(
-                underlying: NSError(domain: "test", code: -1)
-            )
+            throw MarkdownGeneratorError.invalidResponse
         }
-        return Analysis(
-            summary: "Summary of: \(text.prefix(20))",
-            topics: ["test", "mock"]
+        let base = source.content ?? source.userNote ?? ""
+        return GeneratedNote(
+            title: "Note",
+            summary: "Summary of: \(base.prefix(20))",
+            tags: ["test", "mock"],
+            markdown: "# Note\n\nSummary of: \(base.prefix(20))"
         )
     }
 }
@@ -219,9 +216,9 @@ struct ProcessingQueueTests {
         let repo = SourceRepository(dbQueue: db.dbQueue)
         let embedRepo = EmbeddingRepository(dbQueue: db.dbQueue)
         let embedService = EmbeddingService()
-        let generator = MockTextGenerator()
-        let queue = ProcessingQueue(repository: repo, generator: generator,
+        let queue = ProcessingQueue(repository: repo,
                                     embeddingService: embedService, embeddingRepository: embedRepo)
+        await queue.setMarkdownGenerator(MockMarkdownGenerator())
 
         var source = Source(type: .selectedText, content: "Hello world from test")
         try repo.save(&source)
@@ -231,19 +228,20 @@ struct ProcessingQueueTests {
 
         let fetched = try repo.fetch(id: source.id)
         #expect(fetched?.processingStatus == .completed)
+        #expect(fetched?.markdownStatus == .completed)
         #expect(fetched?.summary != nil)
         #expect(fetched?.topics != nil)
     }
 
-    @Test func guardrailRefusalRetriesUpToMax() async throws {
+    @Test func generationFailureRetriesUpToMax() async throws {
         guard #available(macOS 26.0, *) else { return }
         let db = try makeInMemoryDatabase()
         let repo = SourceRepository(dbQueue: db.dbQueue)
         let embedRepo = EmbeddingRepository(dbQueue: db.dbQueue)
         let embedService = EmbeddingService()
-        let generator = MockTextGenerator(shouldRefuse: true)
-        let queue = ProcessingQueue(repository: repo, generator: generator,
+        let queue = ProcessingQueue(repository: repo,
                                     embeddingService: embedService, embeddingRepository: embedRepo)
+        await queue.setMarkdownGenerator(MockMarkdownGenerator(shouldFail: true))
 
         var source = Source(type: .selectedText, content: "Controversial content")
         try repo.save(&source)
@@ -255,6 +253,7 @@ struct ProcessingQueueTests {
 
         let fetched = try repo.fetch(id: source.id)
         #expect(fetched?.processingStatus == .failed)
+        #expect(fetched?.markdownStatus == .failed)
         #expect(fetched?.processingAttempts == 3)
     }
 }

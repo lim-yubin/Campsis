@@ -1525,13 +1525,16 @@ Analyzing locally...
 - [ ] Source 삭제
 - [ ] 전체 데이터 삭제 기능
 
-### Distribution (MVP 이후 배포 시)
+### Distribution (공개 출시 전 완비 — D47)
+
+> 갱신(2026-08-31): "MVP 이후"가 아니라 **완성 후 공개 출시**의 선행 조건. 아래에 더해
+> Supabase Auth + Edge Function 프록시, 딥링크 로그인, 결제(D45·D46)까지 출시 전 완비. 클로즈드 베타 필수.
 
 - [ ] Developer ID 서명 + Hardened Runtime + MLX entitlements
 - [ ] Notarization + Stapling
 - [ ] 모델 다운로드 (CDN, 재개 가능)
 - [ ] Sparkle 자동 업데이트
-- [ ] 오프라인 라이선스 검증
+- [ ] 오프라인 라이선스 검증 / 서버 플랜 검증 (Free/Pro)
 
 ---
 
@@ -2035,6 +2038,7 @@ PRD 원안에 없었으나 구현 과정에서 결정된 사항:
 | D44  | 키 해석 계층화: `AICredentials` 리졸버 (구현)         | 우선순위 ①사용자 Keychain(BYOK) ②(DEBUG 전용)로컬 `.env` ③(미래)프록시 서버. `.env` 로더는 `#if DEBUG`로 릴리즈 빌드에서 컴파일 제외 → 제작자 키가 배포 바이너리에 절대 포함되지 않음. `AICredentials.swift` |
 | D45  | Free/Pro 백엔드는 Supabase (Auth + Edge Function 프록시) | 회원가입/로그인/세션은 Supabase Auth, 플랜·사용량은 Postgres(+RLS), 제작자 키 대리 호출·쿼터·미터링은 Edge Function. 앱은 로그인 후 JWT를 Keychain 저장 → 서버 호출에 첨부. 인증·구독 검증은 **서버가** 판단(클라이언트 불신) |
 | D46  | 배포 UX: 브라우저 다운로드 + 웹 대시보드 + 딥링크 로그인 | 회원가입·플랜·결제는 웹에서 처리, 앱은 로그인만. 데스크톱 로그인은 커스텀 URL 스킴(`campsis://auth?token=…`) 딥링크로 웹 인증 결과 수신. 초기 웹 대시보드 없이 앱 내 설정 화면 + 결제사 관리페이지로 대체 가능. §19.2/§19.5 보강 |
+| D47  | 출시 전략: 핵심 기능 완성 후 공개 출시 (MVP 점진 출시 아님) | 사용자 결정. 스코프 = Phase 7(Luna+MD) + BYOK/Free/Pro + 서버·결제·대시보드. 유료(Pro)는 출시 첫날부터 동작 → 결제·세금·환불 사전 완비. **Pro+(iCloud 동기화·내보내기·팀 공유)는 출시 후로 분리.** 공개 출시 전 **클로즈드 베타(20~30명)** 필수. 영향: D45(Supabase 프록시)·D46(대시보드)·결제가 출시 크리티컬 패스로 편입(기존 "유료화 시점 검토"에서 이동). 상세 순서 `ROADMAP.md` Phase 6 |
 
 ### 28.3.1 Phase 0 진행 현황
 

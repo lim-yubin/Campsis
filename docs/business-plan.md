@@ -195,10 +195,19 @@
 > + 딥링크 로그인 모델로 확정. 이유: App Store는 샌드박스 필수라 AX 기반 "어디서나 캡처"가 막힘.
 > 상세는 `monetization-architecture.md` 참고.
 
-**Phase 5:** 실사용 검증 (2~3주) — 직접 사용, 버그 수정, UX 다듬기
-**Phase 6:** 배포 준비 (2~3주) — Developer ID 서명+공증, Sparkle 자동 업데이트, 랜딩/다운로드 페이지, BYOK로 무료 출시
-**Phase 7:** 유료 기능 (출시 후 1~2개월) — Supabase Auth + Edge Function 프록시 → Free/Pro, 결제(LemonSqueezy 등)
-**Phase 8:** 확장 (출시 후 3~6개월) — iPhone+iCloud 동기화, 내보내기, 팀 공유, MCP 연동
+> 갱신(2026-08-31): **출시 전략 변경 — MVP 점진 출시 → 핵심 기능 완성 후 공개 출시.**
+> BYOK/Free/Pro와 서버·결제·대시보드를 모두 완성한 뒤 공개 출시하며, 유료(Pro)는 출시 첫날부터 동작한다.
+> Pro+(동기화·내보내기·팀공유)만 출시 후로 분리. 공개 출시 전 클로즈드 베타 필수. 상세 순서는 `ROADMAP.md` Phase 6.
+
+**제품 완성 (병행):**
+- 제품 기능 — Phase 7(Luna 생성 + MD 지식베이스) 마무리 → 실사용 검증(도그푸딩)
+- 계정·결제 인프라 — Supabase Auth + Edge Function 프록시 → 딥링크 로그인 → 결제(LemonSqueezy 등) → 웹 대시보드
+
+**패키징 & 출시:**
+- 패키징 — Developer ID 서명+공증, Sparkle 자동 업데이트, 랜딩/다운로드 페이지
+- **클로즈드 베타 (20~30명)** → **공개 출시** (BYOK/Free/Pro 동시)
+
+**출시 후 확장:** iPhone+iCloud 동기화, 내보내기(Obsidian/MD), 팀 공유, MCP 연동 (= Pro+ 기능)
 
 ---
 

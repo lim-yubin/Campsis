@@ -29,8 +29,11 @@ actor LunaChatEngine: ChatEngineProtocol {
         3. If sources are partially relevant, combine memory-based info with general knowledge, \
            clearly distinguishing which parts come from memories vs general knowledge.
         4. Match the language of the user's question (Korean question → Korean answer).
-        5. Answer in natural language with markdown formatting (headings, bullets, bold). \
-           Do NOT wrap the entire answer in a code block.
+        5. Default to a natural, conversational reply in plain prose. \
+           Use markdown structure (headings, bullets, tables, numbered steps, bold) ONLY when the \
+           content genuinely benefits from it — e.g. comparisons, multi-item lists, step-by-step \
+           instructions, or tabular data. Do NOT structure short or conversational answers, and do \
+           NOT add headings just to organize a brief reply. Do NOT wrap the entire answer in a code block.
         6. Be concise but helpful. Support follow-up questions using the conversation context.
         """
 

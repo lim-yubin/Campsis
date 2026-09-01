@@ -7,46 +7,36 @@ struct MessageBubbleView: View {
     @State private var showSources = false
     @State private var copied = false
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if message.role == .assistant {
-                avatar
-            }
-            
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
-                bubble
-
-                if message.role == .assistant {
-                    HStack(spacing: 12) {
-                        copyButton
-
-                        if !sources.isEmpty {
-                            sourcesToggle
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
-
-            if message.role == .user {
-                avatar
-            }
-        }
-        .padding(.horizontal)
+    /// 출처(메모리)가 연결된 답변만 마크다운으로 렌더하고 복사 버튼을 제공한다.
+    private var isMarkdownAnswer: Bool {
+        message.role == .assistant && !sources.isEmpty
     }
 
-    private var avatar: some View {
-        Image(systemName: message.role == .user ? "person.circle.fill" : "brain.head.profile")
-            .font(.title2)
-            .foregroundStyle(message.role == .user ? Color.chatAccent : Color.assistantAccent)
-            .frame(width: 28, height: 28)
-            .accessibilityLabel(message.role == .user ? "나" : "AI")
+    var body: some View {
+        VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
+            bubble
+
+            if isMarkdownAnswer {
+                sourcesToggle
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+        .padding(.horizontal)
     }
 
     private var bubble: some View {
         Group {
-            if message.role == .assistant {
+            if isMarkdownAnswer {
                 MarkdownTextView(text: LunaChatEngine.stripCitations(message.content))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, 28)   // 우상단 복사 버튼과 겹치지 않도록
+                    .overlay(alignment: .topTrailing) { copyButton }
+            } else if message.role == .assistant {
+                // 메모리와 무관한 일반 답변: 평문 채팅
+                Text(LunaChatEngine.stripCitations(message.content))
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(message.content)
                     .font(.body)
@@ -60,7 +50,10 @@ struct MessageBubbleView: View {
                 : Color.assistantBubbleBackground,
             in: RoundedRectangle(cornerRadius: 12)
         )
-        .frame(maxWidth: 600, alignment: message.role == .user ? .trailing : .leading)
+        .frame(
+            maxWidth: message.role == .user ? 600 : .infinity,
+            alignment: message.role == .user ? .trailing : .leading
+        )
     }
 
     private var copyButton: some View {
@@ -70,14 +63,14 @@ struct MessageBubbleView: View {
             copied = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                Text(copied ? "복사됨" : "복사")
-            }
-            .font(.subheadline)
-            .foregroundStyle(copied ? .green : .secondary)
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.caption)
+                .foregroundStyle(copied ? .green : .secondary)
+                .padding(6)
+                .background(.regularMaterial, in: Circle())
         }
         .buttonStyle(.plain)
+        .help(copied ? "복사됨" : "복사")
     }
 
     @ViewBuilder

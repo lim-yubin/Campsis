@@ -50,10 +50,16 @@ struct MarkdownTextView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> IntrinsicScrollView {
         let textView = NSTextView()
+        _ = textView.layoutManager   // TextKit 1 강제(표/NSTextTable 렌더링에 필요)
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
         textView.isRichText = true
+        textView.linkTextAttributes = [
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .cursor: NSCursor.pointingHand,
+        ]
         textView.textContainerInset = .zero
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
@@ -134,6 +140,14 @@ struct MarkdownTextView: NSViewRepresentable {
                 continue
             }
 
+            // GFM 표: 헤더 행 + 구분 행(| --- | --- |) 감지
+            if let table = parseTable(lines, from: i, bodyFont: bodyFont, bodyColor: bodyColor) {
+                result.append(table.attr)
+                result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
+                i = table.next
+                continue
+            }
+
             if trimmed == "---" || trimmed == "***" || trimmed == "___" {
                 result.append(NSAttributedString(string: "\n", attributes: [.font: NSFont.systemFont(ofSize: 6)]))
                 i += 1
@@ -185,7 +199,40 @@ struct MarkdownTextView: NSViewRepresentable {
         var remaining = text[...]
 
         while !remaining.isEmpty {
-            if remaining.hasPrefix("**") || remaining.hasPrefix("__") {
+            if remaining.hasPrefix("![") {
+                // 이미지: ![alt](src)
+                if let link = parseMarkdownLink(remaining.dropFirst()) {
+                    if let image = loadInlineImage(link.url) {
+                        let attachment = NSTextAttachment()
+                        attachment.image = image
+                        let maxW: CGFloat = 360
+                        let s = image.size
+                        let scale = s.width > maxW ? maxW / s.width : 1
+                        attachment.bounds = CGRect(x: 0, y: 0, width: s.width * scale, height: s.height * scale)
+                        result.append(NSAttributedString(attachment: attachment))
+                    } else {
+                        let alt = link.label.isEmpty ? link.url : link.label
+                        result.append(NSAttributedString(string: "🖼 \(alt)", attributes: baseAttrs))
+                    }
+                    remaining = link.rest
+                } else {
+                    result.append(NSAttributedString(string: "!", attributes: baseAttrs))
+                    remaining = remaining.dropFirst()
+                }
+            } else if remaining.hasPrefix("[") {
+                // 링크: [텍스트](url)
+                if let link = parseMarkdownLink(remaining) {
+                    var attrs = baseAttrs
+                    if let url = URL(string: link.url) {
+                        attrs[.link] = url
+                    }
+                    result.append(NSAttributedString(string: link.label, attributes: attrs))
+                    remaining = link.rest
+                } else {
+                    result.append(NSAttributedString(string: "[", attributes: baseAttrs))
+                    remaining = remaining.dropFirst()
+                }
+            } else if remaining.hasPrefix("**") || remaining.hasPrefix("__") {
                 let marker = String(remaining.prefix(2))
                 remaining = remaining.dropFirst(2)
                 if let endRange = remaining.range(of: marker) {
@@ -213,7 +260,10 @@ struct MarkdownTextView: NSViewRepresentable {
                 }
             } else {
                 var chunk = ""
-                while !remaining.isEmpty && !remaining.hasPrefix("**") && !remaining.hasPrefix("__") && !remaining.hasPrefix("`") {
+                while !remaining.isEmpty
+                    && !remaining.hasPrefix("**") && !remaining.hasPrefix("__")
+                    && !remaining.hasPrefix("`") && !remaining.hasPrefix("![")
+                    && !remaining.hasPrefix("[") {
                     chunk.append(remaining.removeFirst())
                 }
                 result.append(NSAttributedString(string: chunk, attributes: baseAttrs))
@@ -221,6 +271,32 @@ struct MarkdownTextView: NSViewRepresentable {
         }
 
         return result
+    }
+
+    /// `[label](url)` 형태를 파싱. `s`는 여는 대괄호 `[`로 시작해야 한다.
+    private func parseMarkdownLink(_ s: Substring) -> (label: String, url: String, rest: Substring)? {
+        guard s.hasPrefix("[") else { return nil }
+        let afterOpen = s.dropFirst()
+        guard let close = afterOpen.firstIndex(of: "]") else { return nil }
+        let label = String(afterOpen[..<close])
+        let afterLabel = afterOpen.index(after: close)
+        guard afterLabel < afterOpen.endIndex, afterOpen[afterLabel] == "(" else { return nil }
+        let afterParen = afterOpen.index(after: afterLabel)
+        guard let closeParen = afterOpen[afterParen...].firstIndex(of: ")") else { return nil }
+        let url = String(afterOpen[afterParen..<closeParen]).trimmingCharacters(in: .whitespaces)
+        let rest = afterOpen[afterOpen.index(after: closeParen)...]
+        return (label, url, rest)
+    }
+
+    /// 로컬 이미지(파일 경로/파일 URL)만 인라인으로 로드. 원격(http)은 동기 렌더를 피해 생략(대체 텍스트).
+    private func loadInlineImage(_ src: String) -> NSImage? {
+        if src.hasPrefix("http://") || src.hasPrefix("https://") { return nil }
+        if let url = URL(string: src), url.isFileURL, let img = NSImage(contentsOf: url) { return img }
+        let expanded = (src as NSString).expandingTildeInPath
+        if FileManager.default.fileExists(atPath: expanded) { return NSImage(contentsOfFile: expanded) }
+        let abs = AppPaths.absoluteURL(from: src)
+        if FileManager.default.fileExists(atPath: abs.path) { return NSImage(contentsOf: abs) }
+        return nil
     }
 
     private func parseHeading(_ line: String) -> (level: Int, content: String)? {
@@ -242,5 +318,83 @@ struct MarkdownTextView: NSViewRepresentable {
         guard afterDot < line.endIndex, line[afterDot] == " " else { return nil }
         let num = Int(prefix) ?? 1
         return (num, String(line[line.index(after: afterDot)...]))
+    }
+
+    // MARK: - 표(GFM 파이프 테이블)
+
+    /// `start`에서 시작하는 GFM 표를 NSTextTable로 렌더링. 표가 아니면 nil.
+    private func parseTable(_ lines: [String], from start: Int,
+                            bodyFont: NSFont, bodyColor: NSColor) -> (attr: NSAttributedString, next: Int)? {
+        guard start + 1 < lines.count else { return nil }
+        let header = lines[start].trimmingCharacters(in: .whitespaces)
+        guard header.contains("|"), isTableSeparator(lines[start + 1].trimmingCharacters(in: .whitespaces)) else {
+            return nil
+        }
+
+        var rows: [[String]] = [splitTableRow(header)]
+        var idx = start + 2
+        while idx < lines.count {
+            let line = lines[idx].trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || !line.contains("|") { break }
+            rows.append(splitTableRow(line))
+            idx += 1
+        }
+
+        let columns = rows.map { $0.count }.max() ?? 0
+        guard columns > 0 else { return nil }
+
+        let table = NSTextTable()
+        table.numberOfColumns = columns
+        table.hidesEmptyCells = false
+
+        let out = NSMutableAttributedString()
+        for (r, row) in rows.enumerated() {
+            for c in 0..<columns {
+                let text = c < row.count ? row[c] : ""
+                let block = NSTextTableBlock(table: table, startingRow: r, rowSpan: 1,
+                                             startingColumn: c, columnSpan: 1)
+                block.setBorderColor(.separatorColor)
+                block.setWidth(1, type: .absoluteValueType, for: .border)
+                block.setWidth(6, type: .absoluteValueType, for: .padding)
+                if r == 0 {
+                    block.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.4)
+                }
+                let para = NSMutableParagraphStyle()
+                para.textBlocks = [block]
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: r == 0 ? NSFont.systemFont(ofSize: 14, weight: .semibold) : bodyFont,
+                    .foregroundColor: bodyColor,
+                    .paragraphStyle: para,
+                ]
+                let cell = NSMutableAttributedString(attributedString: renderInline(text, baseAttrs: attrs))
+                cell.append(NSAttributedString(string: "\n", attributes: attrs))
+                out.append(cell)
+            }
+        }
+        return (out, idx)
+    }
+
+    /// `| --- | :--: |` 같은 표 구분 행인지 판별.
+    private func isTableSeparator(_ line: String) -> Bool {
+        var s = line
+        if s.hasPrefix("|") { s.removeFirst() }
+        if s.hasSuffix("|") { s.removeLast() }
+        let cells = s.split(separator: "|", omittingEmptySubsequences: false)
+        guard !cells.isEmpty else { return false }
+        for cell in cells {
+            let t = cell.trimmingCharacters(in: .whitespaces)
+            if t.isEmpty || !t.contains("-") { return false }
+            if !t.allSatisfy({ $0 == "-" || $0 == ":" }) { return false }
+        }
+        return true
+    }
+
+    /// 표의 한 행을 셀 배열로 분리(앞뒤 파이프 제거).
+    private func splitTableRow(_ line: String) -> [String] {
+        var s = line.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("|") { s.removeFirst() }
+        if s.hasSuffix("|") { s.removeLast() }
+        return s.split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 }

@@ -24,8 +24,11 @@ actor LunaChatEngine: ChatEngineProtocol {
         1. If relevant sources (memories) are provided, base your answer primarily on them. \
            Do NOT insert bracketed source numbers like [1] or [2] in your answer — \
            the app shows the source list separately below the message.
-        2. If no relevant sources are found, answer using your general knowledge. \
-           In this case, start your answer with "💡 메모리에 관련 정보가 없어 일반 지식으로 답변합니다." on its own line.
+        2. Judge whether the provided sources ACTUALLY help answer THIS specific question. \
+           Similarity alone is not relevance. If the sources do not genuinely help (or none are provided), \
+           you MUST begin your answer with this exact line on its own: \
+           💡 메모리에 관련 정보가 없어 일반 지식으로 답변합니다. \
+           Then answer from general knowledge. Never omit this line when the memories are unrelated to the question.
         3. If sources are partially relevant, combine memory-based info with general knowledge, \
            clearly distinguishing which parts come from memories vs general knowledge.
         4. Match the language of the user's question (Korean question → Korean answer).
@@ -51,7 +54,8 @@ actor LunaChatEngine: ChatEngineProtocol {
         let results = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
         let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
         let answer = try await completeChat(messages: messages)
-        return ChatResponse(answer: Self.stripCitations(answer), sources: results)
+        let cleaned = Self.stripCitations(answer)
+        return ChatResponse(answer: cleaned, sources: Self.sources(for: cleaned, from: results))
     }
 
     func sendStream(query: String, conversationId: String,
@@ -60,7 +64,8 @@ actor LunaChatEngine: ChatEngineProtocol {
         let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
 
         let answer = try await streamChat(messages: messages, onToken: onToken)
-        return ChatResponse(answer: Self.stripCitations(answer), sources: results)
+        let cleaned = Self.stripCitations(answer)
+        return ChatResponse(answer: cleaned, sources: Self.sources(for: cleaned, from: results))
     }
 
     // MARK: - 출처 필터링 / 인용 정리
@@ -74,6 +79,15 @@ actor LunaChatEngine: ChatEngineProtocol {
         guard let top = results.first?.score else { return [] }
         let cutoff = max(relevanceFloor, top - relativeMargin)
         return Array(results.filter { $0.score >= cutoff }.prefix(5))
+    }
+
+    /// 일반 지식 답변(규칙2)임을 알리는 마커. 답변 첫 줄에 위치한다.
+    nonisolated static let noMemoryMarker = "💡 메모리에 관련 정보가 없어"
+
+    /// LLM이 일반 지식으로 답한 경우(💡 마커) 출처를 표시하지 않는다.
+    /// 임베딩이 느슨하게 매칭돼 하한을 넘었더라도, 실제 답변이 메모리를 쓰지 않았으면 출처를 비운다.
+    nonisolated static func sources(for answer: String, from results: [SearchResult]) -> [SearchResult] {
+        answer.hasPrefix(noMemoryMarker) ? [] : results
     }
 
     /// 답변 본문에 남을 수 있는 대괄호 번호 인용([1], [23] 등)을 제거한다.

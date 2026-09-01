@@ -26,17 +26,15 @@ struct MessageBubbleView: View {
 
     private var bubble: some View {
         Group {
-            if isMarkdownAnswer {
+            if message.role == .assistant {
+                // 답변은 항상 MarkdownTextView로 렌더(평문 산문도 동일하게 보이며 URL 링크가 확실히 동작).
+                // 복사 버튼은 출처(메모리)가 연결된 답변에만 우상단에 표시.
                 MarkdownTextView(text: LunaChatEngine.stripCitations(message.content))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 28)   // 우상단 복사 버튼과 겹치지 않도록
-                    .overlay(alignment: .topTrailing) { copyButton }
-            } else if message.role == .assistant {
-                // 메모리와 무관한 일반 답변: 평문 채팅
-                Text(LunaChatEngine.stripCitations(message.content))
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, isMarkdownAnswer ? 28 : 0)
+                    .overlay(alignment: .topTrailing) {
+                        if isMarkdownAnswer { copyButton }
+                    }
             } else {
                 Text(message.content)
                     .font(.body)

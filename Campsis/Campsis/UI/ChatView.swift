@@ -96,27 +96,20 @@ struct ChatView: View {
     }
 
     private var streamingBubble: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "brain.head.profile")
-                .font(.title2)
-                .foregroundStyle(Color.assistantAccent)
-                .frame(width: 28, height: 28)
-                .accessibilityLabel("AI")
-
-            Group {
-                if streamingText.isEmpty {
-                    ThinkingIndicator()
-                } else {
-                    Text(streamingText)
-                        .font(.body)
-                        .textSelection(.enabled)
-                }
+        Group {
+            if streamingText.isEmpty {
+                ThinkingIndicator()
+                    .padding(14)
+                    .background(Color.assistantBubbleBackground, in: RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(streamingText)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.assistantBubbleBackground, in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(14)
-            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-            .frame(maxWidth: 600, alignment: .leading)
-
-            Spacer(minLength: 0)
         }
         .padding(.horizontal)
     }

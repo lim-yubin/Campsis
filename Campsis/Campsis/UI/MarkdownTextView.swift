@@ -48,9 +48,25 @@ enum MarkdownClipboard {
 struct MarkdownTextView: NSViewRepresentable {
     let text: String
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            let url: URL?
+            switch link {
+            case let u as URL: url = u
+            case let s as String: url = URL(string: s)
+            default: url = nil
+            }
+            if let url { NSWorkspace.shared.open(url); return true }
+            return false
+        }
+    }
+
     func makeNSView(context: Context) -> IntrinsicScrollView {
         let textView = NSTextView()
         _ = textView.layoutManager   // TextKit 1 강제(표/NSTextTable 렌더링에 필요)
+        textView.delegate = context.coordinator
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
@@ -225,6 +241,8 @@ struct MarkdownTextView: NSViewRepresentable {
                     var attrs = baseAttrs
                     if let url = URL(string: link.url) {
                         attrs[.link] = url
+                        attrs[.foregroundColor] = NSColor.linkColor
+                        attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
                     }
                     result.append(NSAttributedString(string: link.label, attributes: attrs))
                     remaining = link.rest
@@ -241,7 +259,8 @@ struct MarkdownTextView: NSViewRepresentable {
                     if let font = attrs[.font] as? NSFont {
                         attrs[.font] = NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
                     }
-                    result.append(NSAttributedString(string: bold, attributes: attrs))
+                    // 굵게 내부의 URL/링크도 처리되도록 재귀 렌더
+                    result.append(renderInline(bold, baseAttrs: attrs))
                     remaining = remaining[endRange.upperBound...]
                 } else {
                     result.append(NSAttributedString(string: marker, attributes: baseAttrs))
@@ -258,12 +277,39 @@ struct MarkdownTextView: NSViewRepresentable {
                 } else {
                     result.append(NSAttributedString(string: "`", attributes: baseAttrs))
                 }
+            } else if remaining.hasPrefix("http://") || remaining.hasPrefix("https://") {
+                // 평문 URL 자동 링크화
+                var raw = ""
+                while let c = remaining.first, !c.isWhitespace {
+                    raw.append(c)
+                    remaining = remaining.dropFirst()
+                }
+                // 흔한 후행 문장부호는 URL에서 제외해 뒤에 평문으로 붙인다
+                let trailingSet = Set(")].,;:!?\"'》」』")
+                var trailing = ""
+                while let last = raw.last, trailingSet.contains(last) {
+                    trailing.insert(last, at: trailing.startIndex)
+                    raw.removeLast()
+                }
+                if let url = URL(string: raw) {
+                    var attrs = baseAttrs
+                    attrs[.link] = url
+                    attrs[.foregroundColor] = NSColor.linkColor
+                    attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                    result.append(NSAttributedString(string: raw, attributes: attrs))
+                } else {
+                    result.append(NSAttributedString(string: raw, attributes: baseAttrs))
+                }
+                if !trailing.isEmpty {
+                    result.append(NSAttributedString(string: trailing, attributes: baseAttrs))
+                }
             } else {
                 var chunk = ""
                 while !remaining.isEmpty
                     && !remaining.hasPrefix("**") && !remaining.hasPrefix("__")
                     && !remaining.hasPrefix("`") && !remaining.hasPrefix("![")
-                    && !remaining.hasPrefix("[") {
+                    && !remaining.hasPrefix("[")
+                    && !remaining.hasPrefix("http://") && !remaining.hasPrefix("https://") {
                     chunk.append(remaining.removeFirst())
                 }
                 result.append(NSAttributedString(string: chunk, attributes: baseAttrs))

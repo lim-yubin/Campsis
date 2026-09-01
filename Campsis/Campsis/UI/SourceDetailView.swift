@@ -62,6 +62,17 @@ struct SourceDetailView: View {
                     Button("취소") { isEditing = false }
                 }
             } else {
+                if let md = markdownText, !md.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("마크다운으로 복사") { MarkdownClipboard.copyMarkdown(md) }
+                            Button("일반 텍스트로 복사") { MarkdownClipboard.copyPlain(md) }
+                        } label: {
+                            Label("복사", systemImage: "doc.on.doc")
+                        }
+                        .help("정리본 복사")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         startEditing()

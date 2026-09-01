@@ -22,11 +22,11 @@ struct MainContentView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
         } detail: {
-            detailView
-        }
-        .inspector(isPresented: $appState.showInspector) {
-            InspectorPanelView()
-                .inspectorColumnWidth(min: 280, ideal: 360, max: 520)
+            // 메인 영역 안에서 좌우로 나누는 커스텀 분할. OS 인스펙터 컬럼과 달리
+            // 열어도 창이 커지지 않고, 분할선으로 메인을 최소 폭(320)까지 확실히 줄일 수 있다.
+            InspectorSplit {
+                detailView
+            }
         }
         .overlay {
             if isDragOver { dropOverlay }
@@ -188,13 +188,7 @@ struct MainContentView: View {
                 .navigationTitle(conversations.first(where: { $0.id == id })?.title ?? "채팅")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            appState.inspectorMode = .memories
-                            appState.showInspector.toggle()
-                        } label: {
-                            Label("메모리 패널", systemImage: "sidebar.right")
-                        }
-                        .help("메모리를 채팅과 함께 보기")
+                        InspectorToggleButton()
                     }
                 }
         case .memories:
@@ -344,5 +338,85 @@ struct MainContentView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+/// 메인 콘텐츠 오른쪽에 인스펙터를 붙이는 커스텀 좌우 분할 컨테이너.
+/// - 열어도 창 폭이 늘어나지 않는다(메인이 줄어 공간을 내준다).
+/// - 분할선을 끌어 인스펙터 폭을 조절하며, 메인은 최소 폭까지 줄어든다.
+private struct InspectorSplit<Content: View>: View {
+    @Environment(AppState.self) private var appState
+    @AppStorage("inspectorWidth") private var storedWidth: Double = 320
+    // 드래그 중 계산된 목표 폭(콘텐츠는 리사이즈하지 않고 가이드 라인만 표시).
+    @State private var dragProposed: Double?
+    @State private var dividerHovered = false
+
+    private let mainMinWidth: CGFloat = 320
+    private let inspectorMinWidth: CGFloat = 280
+    private let inspectorMaxWidth: CGFloat = 700
+    private let dividerW: CGFloat = 1
+
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        GeometryReader { geo in
+            let total = geo.size.width
+            let maxForMain = max(inspectorMinWidth, total - mainMinWidth - dividerW)
+            let committed = min(min(CGFloat(storedWidth), inspectorMaxWidth), maxForMain)
+            let inspectorW = max(committed, inspectorMinWidth)
+
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    content()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if appState.showInspector {
+                        resizeDivider(total: total, maxForMain: maxForMain)
+                        InspectorPanelView()
+                            .frame(width: inspectorW)
+                            .transition(.move(edge: .trailing))
+                    }
+                }
+                .frame(width: total, height: geo.size.height, alignment: .leading)
+
+                // 드래그 중 표시되는 얇은 가이드 라인(콘텐츠 재배치 없이 커서만 추종)
+                if appState.showInspector, let proposed = dragProposed {
+                    Rectangle()
+                        .fill(Color.accentColor)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .offset(x: total - CGFloat(proposed) - dividerW)
+                }
+            }
+        }
+    }
+
+    private func resizeDivider(total: CGFloat, maxForMain: CGFloat) -> some View {
+        let active = dividerHovered || dragProposed != nil
+        return ZStack {
+            Rectangle()
+                .fill(active ? Color.accentColor : Color(nsColor: .separatorColor))
+                .frame(width: active ? 2 : 1)
+            Rectangle().fill(.clear).frame(width: 8).contentShape(Rectangle())  // 잡기 쉬운 히트 영역
+        }
+        .frame(width: 8)
+        .animation(.easeInOut(duration: 0.12), value: active)
+        .onHover { inside in
+            dividerHovered = inside
+            if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    // 분할선을 왼쪽으로 끌면(translation.width < 0) 인스펙터가 넓어진다.
+                    let upper = min(Double(inspectorMaxWidth), Double(maxForMain))
+                    let proposed = storedWidth - Double(value.translation.width)
+                    dragProposed = min(max(proposed, Double(inspectorMinWidth)), upper)
+                }
+                .onEnded { _ in
+                    if let p = dragProposed { storedWidth = p }   // 손 뗄 때 한 번만 실제 적용
+                    dragProposed = nil
+                }
+        )
     }
 }

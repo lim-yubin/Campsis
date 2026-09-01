@@ -35,7 +35,29 @@ struct InspectorPanelView: View {
                 InspectorMemoriesList()
             }
         }
-        .frame(minWidth: 280, idealWidth: 360)
+        // 폭은 인스펙터 컬럼(.inspectorColumnWidth) 한 곳에서만 관리한다.
+        // 여기서 minWidth/idealWidth를 또 지정하면 리사이즈 시 두 제약이 충돌해 튕김이 발생.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// 어느 화면에서든 분할 창(인스펙터)을 열고 닫는 툴바 토글 버튼. (A3)
+struct InspectorToggleButton: View {
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        Button {
+            // 열 때 아직 볼 출처가 없으면 메모리 목록을 기본으로 보여준다.
+            if !appState.showInspector && appState.inspectorSource == nil {
+                appState.inspectorMode = .memories
+            }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                appState.showInspector.toggle()
+            }
+        } label: {
+            Label("분할 보기", systemImage: "sidebar.right")
+        }
+        .help("메모리를 화면 분할로 함께 보기")
     }
 }
 
@@ -49,6 +71,16 @@ struct SourcePreviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                // A1: 이미지/스크린샷 소스는 캡처본을 상단에 노출
+                if let image = previewImage {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .frame(maxHeight: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
                 header
 
                 if let md = markdown, !md.isEmpty {
@@ -58,7 +90,7 @@ struct SourcePreviewView: View {
                     Text(content)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                } else if loaded {
+                } else if loaded && previewImage == nil {
                     Text("표시할 내용이 없어요.")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -70,16 +102,52 @@ struct SourcePreviewView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let title = source.windowTitle, !title.isEmpty {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(2)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let title = source.windowTitle, !title.isEmpty {
+                        Text(title)
+                            .font(.headline)
+                            .lineLimit(2)
+                    }
+                    Text(source.capturedAt.formatted(.dateTime.year().month().day().hour().minute()))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                copyMenu
             }
-            Text(source.capturedAt.formatted(.dateTime.year().month().day().hour().minute()))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+    }
+
+    // B2: 정리본 복사 — 마크다운 원문 / 일반 텍스트
+    @ViewBuilder
+    private var copyMenu: some View {
+        if let md = markdown, !md.isEmpty {
+            Menu {
+                Button("마크다운으로 복사") { MarkdownClipboard.copyMarkdown(md) }
+                Button("일반 텍스트로 복사") { MarkdownClipboard.copyPlain(md) }
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("정리본 복사")
+        }
+    }
+
+    /// 스크린샷 또는 이미지 파일이면 상단 미리보기용 이미지를 로드한다.
+    private var previewImage: NSImage? {
+        if source.type == .screenshot, let path = source.screenshotPath {
+            return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+        }
+        if source.type == .file, let path = source.filePath {
+            let ext = (path as NSString).pathExtension.lowercased()
+            if ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains(ext) {
+                return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+            }
+        }
+        return nil
     }
 
     private func load() {
@@ -95,28 +163,15 @@ private struct InspectorMemoriesList: View {
 
     var body: some View {
         List {
+            // A4: 메모리 메뉴와 동일한 MemoryRowView를 재사용해 콘텐츠를 크고 명확하게 표시
             ForEach(sources) { source in
-                Button {
-                    appState.inspectorSource = source
-                    appState.inspectorMode = .source
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: iconName(for: source.type))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(title(for: source))
-                                .font(.subheadline)
-                                .lineLimit(1)
-                            Text(source.capturedAt.formatted(.dateTime.month().day().hour().minute()))
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer(minLength: 0)
-                    }
+                MemoryRowView(source: source)
                     .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                    .onTapGesture {
+                        appState.inspectorSource = source
+                        appState.inspectorMode = .source
+                    }
+                    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
             }
         }
         .listStyle(.inset)
@@ -134,22 +189,5 @@ private struct InspectorMemoriesList: View {
 
     private func load() {
         sources = (try? appState.sourceRepository.fetchAll()) ?? []
-    }
-
-    private func title(for source: Source) -> String {
-        if let content = source.content, !content.isEmpty { return String(content.prefix(60)) }
-        if let summary = source.summary, !summary.isEmpty { return summary }
-        if let title = source.windowTitle, !title.isEmpty { return title }
-        return source.type.rawValue.capitalized
-    }
-
-    private func iconName(for type: SourceType) -> String {
-        switch type {
-        case .selectedText: return "text.quote"
-        case .screenshot: return "camera"
-        case .note: return "note.text"
-        case .voice: return "waveform"
-        case .file: return "doc"
-        }
     }
 }

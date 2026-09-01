@@ -67,6 +67,11 @@ struct MemoriesView: View {
                 sourceList
             }
             .navigationTitle("메모리")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    InspectorToggleButton()
+                }
+            }
             .navigationDestination(item: $selectedSource) { source in
                 SourceDetailView(source: source)
             }
@@ -107,13 +112,16 @@ struct MemoriesView: View {
 
     private var filterBar: some View {
         HStack(spacing: 10) {
+            // 세그먼트(6칸) 대신 컴팩트한 드롭다운을 써서 필터바의 최소 폭을 낮춘다.
+            // → 분할선 드래그 시에도 상세 컬럼이 320까지 줄어들 수 있게 함.
             Picker("Filter", selection: $selectedFilter) {
                 ForEach(SourceFilter.allCases) { filter in
                     Text(filter.label).tag(filter)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .labelsHidden()
+            .fixedSize()
 
             Spacer()
 

@@ -1,6 +1,50 @@
 import SwiftUI
 import AppKit
 
+/// 정리본 복사에 사용하는 변환 헬퍼. 마크다운 원문 복사와 서식을 제거한 일반 텍스트 복사를 지원한다.
+enum MarkdownClipboard {
+    /// 마크다운 원문을 그대로 클립보드에 복사.
+    static func copyMarkdown(_ markdown: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+    }
+
+    /// 마크다운 서식을 제거한 일반 텍스트로 복사.
+    static func copyPlain(_ markdown: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(plainText(from: markdown), forType: .string)
+    }
+
+    /// 헤딩/굵게/인라인코드/목록/링크/구분선 등의 서식을 제거해 사람이 읽기 좋은 텍스트로 변환.
+    static func plainText(from markdown: String) -> String {
+        var lines: [String] = []
+        var inFence = false
+        for raw in markdown.components(separatedBy: "\n") {
+            var line = raw
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") { inFence.toggle(); continue }
+            if inFence { lines.append(line); continue }
+            if trimmed == "---" || trimmed == "***" || trimmed == "___" { lines.append(""); continue }
+            // 헤딩 마커 제거
+            if let hashEnd = trimmed.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                line = String(trimmed[hashEnd.upperBound...])
+            } else {
+                line = trimmed
+            }
+            // 목록 마커를 불릿/번호로 정리
+            line = line.replacingOccurrences(of: #"^[-*]\s+"#, with: "• ", options: .regularExpression)
+            // 링크 [텍스트](url) → 텍스트
+            line = line.replacingOccurrences(of: #"\[([^\]]+)\]\([^)]*\)"#, with: "$1", options: .regularExpression)
+            // 굵게/기울임/인라인코드 마커 제거
+            line = line.replacingOccurrences(of: "**", with: "")
+            line = line.replacingOccurrences(of: "__", with: "")
+            line = line.replacingOccurrences(of: "`", with: "")
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct MarkdownTextView: NSViewRepresentable {
     let text: String
 

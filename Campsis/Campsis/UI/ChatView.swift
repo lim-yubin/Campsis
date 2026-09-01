@@ -73,16 +73,25 @@ struct ChatView: View {
             }
             .onChange(of: messages.count) { scrollToBottom(proxy) }
             .onChange(of: streamingText) { scrollToBottom(proxy) }
+            .onAppear {
+                // 채팅방 진입 시 가장 최근 대화가 보이도록 최하단으로 이동 (C2)
+                DispatchQueue.main.async { scrollToBottom(proxy, animated: false) }
+            }
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation {
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        let action = {
             if isGenerating {
                 proxy.scrollTo("streaming", anchor: .bottom)
             } else if let lastId = messages.last?.id {
                 proxy.scrollTo(lastId, anchor: .bottom)
             }
+        }
+        if animated {
+            withAnimation { action() }
+        } else {
+            action()
         }
     }
 

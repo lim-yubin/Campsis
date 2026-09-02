@@ -20,6 +20,23 @@ struct MemoriesView: View {
     @State private var semanticMatchIDs: Set<String> = []
     @State private var searchDebounce: Task<Void, Never>?
 
+    // Phase 8.2: 소속 위키 배지 맵(소스 id → 위키 제목들) + 위키 주입 필터
+    @State private var wikiMembership: [String: [String]] = [:]
+    @State private var wikiCount = 0
+    @State private var wikiFilter: WikiFilter = .all
+
+    enum WikiFilter: String, CaseIterable, Identifiable {
+        case all, unlinked, linked
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: return "전체"
+            case .unlinked: return "위키 미주입"
+            case .linked: return "위키 주입됨"
+            }
+        }
+    }
+
     private var filteredCount: Int {
         groupedSources.reduce(0) { $0 + $1.sources.count }
     }
@@ -42,7 +59,7 @@ struct MemoriesView: View {
             base = sources
         }
 
-        let filtered = base.filter { matchesSearch($0) }
+        let filtered = base.filter { matchesSearch($0) && matchesWikiFilter($0) }
 
         let grouped = Dictionary(grouping: filtered) { source in
             formatter.string(from: source.capturedAt)
@@ -64,6 +81,15 @@ struct MemoriesView: View {
         // 정확 일치(텍스트 포함) 우선, 없으면 의미검색 결과 포함 여부로 판정.
         if fields.contains(where: { $0?.lowercased().contains(query) == true }) { return true }
         return semanticMatchIDs.contains(source.id)
+    }
+
+    /// 위키 주입 여부 필터.
+    private func matchesWikiFilter(_ source: Source) -> Bool {
+        switch wikiFilter {
+        case .all: return true
+        case .unlinked: return wikiMembership[source.id] == nil
+        case .linked: return wikiMembership[source.id] != nil
+        }
     }
 
     /// 사이드바 검색어를 의미검색으로 승격. 디바운스 후 임베딩 유사도 상위 결과를 병합한다.
@@ -134,6 +160,17 @@ struct MemoriesView: View {
 
     private var filterBar: some View {
         HStack(spacing: 10) {
+            if wikiCount > 0 {
+                Picker("위키 주입", selection: $wikiFilter) {
+                    ForEach(WikiFilter.allCases) { f in
+                        Text(f.label).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+
             Spacer()
 
             if let status = importStatus {
@@ -270,7 +307,9 @@ struct MemoriesView: View {
                         )
                     ) {
                         ForEach(group.sources) { source in
-                            MemoryRowView(source: source, isSelected: selectedSource?.id == source.id)
+                            MemoryRowView(source: source,
+                                          isSelected: selectedSource?.id == source.id,
+                                          wikiTitles: wikiMembership[source.id] ?? [])
                                 .contentShape(Rectangle())
                                 .onTapGesture { selectedSource = source }
                                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
@@ -369,6 +408,18 @@ struct MemoriesView: View {
         } catch {
             NSLog("[Campsis] Failed to load sources: \(error)")
         }
+        loadWikiMembership()
+    }
+
+    /// 소속 위키 배지 맵과 위키 개수를 갱신한다(메모함 진입/갱신 시).
+    private func loadWikiMembership() {
+        do {
+            wikiMembership = try appState.wikiRepository.membershipTitles()
+            wikiCount = try appState.wikiRepository.count()
+            if wikiCount == 0 { wikiFilter = .all }
+        } catch {
+            NSLog("[Campsis] Failed to load wiki membership: \(error)")
+        }
     }
 }
 
@@ -405,6 +456,8 @@ enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
 struct MemoryRowView: View {
     let source: Source
     var isSelected: Bool = false
+    /// 이 메모가 속한 위키 제목들(Phase 8.2 소속 위키 배지). 비어 있으면 미주입.
+    var wikiTitles: [String] = []
     @State private var isHovered = false
 
     var body: some View {
@@ -421,6 +474,29 @@ struct MemoryRowView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                }
+
+                if !wikiTitles.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(wikiTitles.prefix(3), id: \.self) { title in
+                            HStack(spacing: 3) {
+                                Image(systemName: "book.closed.fill")
+                                    .font(.system(size: 8))
+                                Text(title)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .padding(.vertical, 1)
+                            .padding(.horizontal, 6)
+                            .background(Color.chatAccent.opacity(0.16), in: Capsule())
+                            .foregroundStyle(Color.chatAccent)
+                        }
+                        if wikiTitles.count > 3 {
+                            Text("+\(wikiTitles.count - 3)")
+                                .font(.caption2)
+                                .foregroundStyle(Color.chatAccent)
+                        }
+                    }
                 }
 
                 HStack(spacing: 6) {

@@ -99,6 +99,7 @@ final class AppState {
     let embeddingService: EmbeddingService
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
+    let wikiRepository: WikiRepository
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
     var searchEngineRef: (any Sendable)?
@@ -119,12 +120,13 @@ final class AppState {
 
     init(sourceRepository: SourceRepository, embeddingRepository: EmbeddingRepository,
          embeddingService: EmbeddingService, conversationRepository: ConversationRepository,
-         messageRepository: MessageRepository) {
+         messageRepository: MessageRepository, wikiRepository: WikiRepository) {
         self.sourceRepository = sourceRepository
         self.embeddingRepository = embeddingRepository
         self.embeddingService = embeddingService
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
+        self.wikiRepository = wikiRepository
     }
 
     func generateResponse(for query: String, conversationId: String) {
@@ -255,9 +257,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let embedService = EmbeddingService()
         let convRepo = ConversationRepository(dbQueue: db.dbQueue)
         let msgRepo = MessageRepository(dbQueue: db.dbQueue)
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
         return AppState(sourceRepository: repo, embeddingRepository: embedRepo,
                        embeddingService: embedService, conversationRepository: convRepo,
-                       messageRepository: msgRepo)
+                       messageRepository: msgRepo, wikiRepository: wikiRepo)
     }()
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

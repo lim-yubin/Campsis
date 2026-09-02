@@ -260,7 +260,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 | #    | 작업                                                          | 상태 | 비고                                                                 |
 | ---- | ------------------------------------------------------------- | ---- | -------------------------------------------------------------------- |
 | 8.1  | 데이터 모델·마이그레이션 (`Wiki`·`NoteWikiLink`·`WikiWikiLink`) | 완료 | 2026-09-02. v8 마이그레이션(+`wiki_revision`·`wiki_embedding`), `Wiki.swift` 모델, `WikiRepository`, `AppPaths` 위키 디렉터리. 임베딩은 FK 제약상 별도 `wiki_embedding` 테이블. 테스트 7종 추가·통과 |
-| 8.2  | 메모 메뉴에 "위키 미주입/주입됨" 구분 + 소속 위키 배지         | 대기 | 기존 `MemoriesView` 확장                                             |
+| 8.2  | 메모 메뉴에 "위키 미주입/주입됨" 구분 + 소속 위키 배지         | 완료 | 2026-09-02. `MemoriesView`에 위키 주입 세그먼트 필터(전체/미주입/주입됨, 위키 존재 시만 노출) + 행에 소속 위키 배지(book 칩, 최대 3+오버플로). `WikiRepository.membershipTitles()` 단일조회 맵 |
 | 8.3  | 승격 UX: 체크박스 선택 + "위키에 정리" 버튼                     | 대기 | 전체선택·토픽필터·규모 대비                                          |
 | 8.4  | 라우팅 미리보기: 기존 위키 매칭(임베딩)→목적지 제시·수정, 없으면 새 위키 후보 | 대기 | 토픽 폭발/중복 방지 핵심. `VectorSearchEngine` 재사용                |
 | 8.5  | 승격 실행: 소속 등록 + 백링크 생성(즉시)                       | 대기 | 플로우 D.1                                                           |
@@ -290,6 +290,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-02 | **8.2 메모함 위키 구분·소속 배지 완료.** `MemoriesView`: 위키가 1개 이상일 때만 상단에 세그먼트 필터(전체/위키 미주입/위키 주입됨) 노출, `matchesWikiFilter`로 그룹핑 반영. 각 메모 행(`MemoryRowView`)에 소속 위키 배지(chatAccent book.closed 칩, 최대 3개+`+N` 오버플로). `WikiRepository.membershipTitles()`(위키 제목 맵×note_wiki_link 단일 조회)로 소스별 소속 위키 표시. `AppState`에 `wikiRepository` 배선 |
 | 2026-09-02 | **8.1 데이터 모델·마이그레이션 완료(Phase 8 착수).** v8 마이그레이션: `wiki`(토픽 허브 메타)·`note_wiki_link`(메모↔위키 다대다)·`wiki_wiki_link`(위키 백링크)·`wiki_revision`(OW4 되돌리기 스냅샷)·`wiki_embedding`(OW2 위키 페이지 임베딩) 테이블 + 인덱스. `Storage/Wiki.swift`(Wiki·NoteWikiLink·WikiWikiLink·WikiRevision·WikiEmbeddingRecord 모델), `Storage/WikiRepository.swift`(CRUD·MD쓰기+스냅샷·링크·member_count·리비전 링버퍼·임베딩), `AppPaths`에 wiki_markdowns·wiki_revisions 추가. **구현 이탈:** 위키 임베딩은 기존 `embedding.source_id` FK(cascade) 제약상 `kind` 컬럼 대신 동형 별도 테이블 `wiki_embedding`으로 분리(노트 파이프라인 무간섭·FK 정합). 위키↔소스 삭제 시 링크·임베딩 FK cascade 자동 정리. 테스트 7종 추가, 빌드·전체 테스트 통과 |
 | 2026-09-02 | **OW5 Lint 트리거 확정: 이벤트 기반 국소(주) + 저빈도 전수(보조), LLM 비호출.** 시점 ①위키 메뉴 진입 ②승격/재합성 완료 직후 해당 위키(piggyback) ③앱 유휴 시 하루 최대 1회 전수(마지막+24h & 위키 변경 있을 때, ProcessingQueue 잡). 비용: 중복(벡터)·고아(DB)·stale(날짜) 로컬 0 + 모순은 재합성 piggyback 추가 0 → 별도 LLM Lint 잡 없음. 결과는 비파괴 제안 카드 + dismiss 재알림 쿨다운. MVP는 ①② 우선, ③ 후순위. 상세 `docs/phase8-llm-wiki.md` OW5·§8. **→ 이로써 Phase 8 미결 질문 OW1~OW6 전부 확정, 착수 준비 완료** |
 | 2026-09-02 | **OW4 되돌리기 방식 확정: MD 스냅샷.** git 유사 이력 폐기(비개발자 과잉·취약, §10 요구는 원클릭 되돌리기지 VCS 아님). 위키 MD 쓰기 직전 이전 버전을 `wiki_revision` 테이블 + `wiki_revisions/{wikiId}/{id}.md`(기존 AppPaths 상대경로 패턴)로 보관, 위키당 최근 N=10 링버퍼. 되돌리기=직전 MD 복원+재임베딩, 승격이면 `added_source_ids`로 그 배치 링크만 제거+member_count 복구. UI: 완료 토스트 원클릭 되돌리기, 위키 상세 "기록"은 후순위. 상세 `docs/phase8-llm-wiki.md` OW4·§4·§10 |

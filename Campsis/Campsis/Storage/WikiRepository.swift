@@ -173,6 +173,23 @@ nonisolated struct WikiRepository: Sendable {
         }
     }
 
+    /// 메모 id → 소속 위키 제목 목록 맵(메모함 소속 위키 배지용). 한 번의 조회로 전체 구성.
+    func membershipTitles() throws -> [String: [String]] {
+        try dbQueue.read { db in
+            let titleById = Dictionary(
+                try Wiki.fetchAll(db).map { ($0.id, $0.title) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            var map: [String: [String]] = [:]
+            for link in try NoteWikiLink.fetchAll(db) {
+                if let title = titleById[link.wikiId] {
+                    map[link.sourceId, default: []].append(title)
+                }
+            }
+            return map
+        }
+    }
+
     private func refreshMemberCount(wikiId: String) throws {
         try dbQueue.write { db in
             let count = try NoteWikiLink

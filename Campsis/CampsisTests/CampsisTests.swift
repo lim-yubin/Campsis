@@ -258,6 +258,132 @@ struct ProcessingQueueTests {
     }
 }
 
+// MARK: - Phase 8 Wiki (8.1 데이터 모델)
+
+struct WikiMigrationTests {
+    @Test func v8CreatesWikiTables() throws {
+        let db = try makeInMemoryDatabase()
+        let tables = try db.dbQueue.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        #expect(tables.contains("wiki"))
+        #expect(tables.contains("note_wiki_link"))
+        #expect(tables.contains("wiki_wiki_link"))
+        #expect(tables.contains("wiki_revision"))
+        #expect(tables.contains("wiki_embedding"))
+    }
+
+    @Test func wikiTableHasExpectedColumns() throws {
+        let db = try makeInMemoryDatabase()
+        let columns = try db.dbQueue.read { db in
+            try Row.fetchAll(db, sql: "PRAGMA table_info(wiki)")
+        }
+        let names: [String] = columns.map { $0["name"] }
+        #expect(names.contains("topic_slug"))
+        #expect(names.contains("markdown_path"))
+        #expect(names.contains("markdown_edited"))
+        #expect(names.contains("member_count"))
+    }
+}
+
+struct WikiRepositoryTests {
+    @Test func saveAndFetch() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "생산성", topicSlug: "productivity", summary: "요약")
+        try repo.save(&wiki)
+
+        let fetched = try repo.fetch(id: wiki.id)
+        #expect(fetched?.title == "생산성")
+        #expect(fetched?.topicSlug == "productivity")
+        #expect(fetched?.memberCount == 0)
+        #expect(try repo.fetch(topicSlug: "productivity")?.id == wiki.id)
+    }
+
+    @Test func addAndRemoveNoteUpdatesMemberCount() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "회의록", topicSlug: "meetings")
+        try wikiRepo.save(&wiki)
+
+        var s1 = Source(type: .note, content: "메모1")
+        var s2 = Source(type: .note, content: "메모2")
+        try sourceRepo.save(&s1)
+        try sourceRepo.save(&s2)
+
+        try wikiRepo.addNote(s1.id, toWiki: wiki.id, matchScore: 0.7)
+        try wikiRepo.addNote(s2.id, toWiki: wiki.id)
+        #expect(try wikiRepo.fetch(id: wiki.id)?.memberCount == 2)
+        #expect(try wikiRepo.noteIds(forWiki: wiki.id).count == 2)
+        #expect(try wikiRepo.wikiIds(forSource: s1.id) == [wiki.id])
+        #expect(try wikiRepo.linkedSourceIds().contains(s1.id))
+
+        try wikiRepo.removeNote(s1.id, fromWiki: wiki.id)
+        #expect(try wikiRepo.fetch(id: wiki.id)?.memberCount == 1)
+    }
+
+    @Test func addNoteIsIdempotent() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "T", topicSlug: "t")
+        try wikiRepo.save(&wiki)
+        var s = Source(type: .note, content: "메모")
+        try sourceRepo.save(&s)
+
+        try wikiRepo.addNote(s.id, toWiki: wiki.id)
+        try wikiRepo.addNote(s.id, toWiki: wiki.id)
+        #expect(try wikiRepo.fetch(id: wiki.id)?.memberCount == 1)
+    }
+
+    @Test func deletingWikiCascadesLinks() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "T", topicSlug: "t")
+        try wikiRepo.save(&wiki)
+        var s = Source(type: .note, content: "메모")
+        try sourceRepo.save(&s)
+        try wikiRepo.addNote(s.id, toWiki: wiki.id)
+
+        try wikiRepo.delete(wiki)
+        #expect(try wikiRepo.wikiIds(forSource: s.id).isEmpty)
+    }
+
+    @Test func wikiLinkRoundtrip() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+
+        var a = Wiki(title: "A", topicSlug: "a")
+        var b = Wiki(title: "B", topicSlug: "b")
+        try repo.save(&a)
+        try repo.save(&b)
+
+        try repo.addWikiLink(from: a.id, to: b.id, weight: 0.5)
+        #expect(try repo.relatedWikiIds(forWiki: a.id) == [b.id])
+    }
+
+    @Test func embeddingSaveReplacesAndFetches() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "T", topicSlug: "t")
+        try repo.save(&wiki)
+
+        try repo.saveEmbedding([0.1, 0.2, 0.3], forWiki: wiki.id, model: "bge-m3", version: "1")
+        try repo.saveEmbedding([0.4, 0.5, 0.6], forWiki: wiki.id, model: "bge-m3", version: "1")
+
+        let records = try repo.fetchAllEmbeddings(model: "bge-m3", version: "1")
+        #expect(records.count == 1)  // 교체됨
+        #expect(records.first?.vectorAsFloats().count == 3)
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

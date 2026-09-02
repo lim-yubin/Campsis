@@ -18,6 +18,12 @@ nonisolated enum AppPaths {
 
     static let markdowns: URL = applicationSupport.appending(path: "markdowns", directoryHint: .isDirectory)
 
+    /// 위키 종합 MD 진실원 (Phase 8).
+    static let wikiMarkdowns: URL = applicationSupport.appending(path: "wiki_markdowns", directoryHint: .isDirectory)
+
+    /// 위키 되돌리기 스냅샷 (OW4). 하위에 {wikiId}/ 디렉터리로 분류.
+    static let wikiRevisions: URL = applicationSupport.appending(path: "wiki_revisions", directoryHint: .isDirectory)
+
     private static var basePath: String {
         let p = applicationSupport.path(percentEncoded: false)
         return p.hasSuffix("/") ? p : p + "/"
@@ -25,7 +31,7 @@ nonisolated enum AppPaths {
 
     static func ensureDirectories() throws {
         let fm = FileManager.default
-        for dir in [applicationSupport, screenshots, files, audio, markdowns] {
+        for dir in [applicationSupport, screenshots, files, audio, markdowns, wikiMarkdowns, wikiRevisions] {
             if !fm.fileExists(atPath: dir.path(percentEncoded: false)) {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }

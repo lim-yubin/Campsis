@@ -16,6 +16,8 @@ extension Notification.Name {
     static let aiSettingsChanged = Notification.Name("aiSettingsChanged")
     /// 위키가 생성/재합성되어 목록·상세를 새로고침해야 할 때(Phase 8).
     static let wikiUpdated = Notification.Name("wikiUpdated")
+    /// 채팅 출처(위키 배지) 클릭 등으로 특정 위키를 열어야 할 때(Phase 8.8). `AppState.pendingWikiId` 사용.
+    static let openWiki = Notification.Name("openWiki")
 }
 
 /// AI 생성 제공자 (D36, D38, D48). AppStorage 키 "aiProvider"에 rawValue 저장.

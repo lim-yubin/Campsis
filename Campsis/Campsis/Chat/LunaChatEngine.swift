@@ -10,6 +10,7 @@ import Foundation
 actor LunaChatEngine: ChatEngineProtocol {
     private let searchEngine: VectorSearchEngine
     private let messageRepository: MessageRepository
+    private let wikiRepository: WikiRepository
     private let apiKey: String
     private let model: String
     private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -17,11 +18,13 @@ actor LunaChatEngine: ChatEngineProtocol {
     private let historyLimit = 6
 
     private let instructions = """
-        You are a personal AI assistant with access to the user's saved memories \
-        (text clips, screenshots, notes, files). You also have general knowledge.
+        You are a personal AI assistant with access to the user's saved knowledge: \
+        WIKI pages (synthesized topic summaries the user curated) and MEMOS \
+        (individual captured text, screenshots, notes, files). Prefer WIKI pages when they \
+        answer the question; use MEMOS for specific details. You also have general knowledge.
 
         Rules:
-        1. If relevant sources (memories) are provided, base your answer primarily on them. \
+        1. If relevant sources (wiki pages or memos) are provided, base your answer primarily on them. \
            Do NOT insert bracketed source numbers like [1] or [2] in your answer — \
            the app shows the source list separately below the message.
         2. Judge whether the provided sources ACTUALLY help answer THIS specific question. \
@@ -42,30 +45,56 @@ actor LunaChatEngine: ChatEngineProtocol {
 
     init(searchEngine: VectorSearchEngine,
          messageRepository: MessageRepository,
+         wikiRepository: WikiRepository,
          apiKey: String,
          model: String = "gpt-5.6-luna") {
         self.searchEngine = searchEngine
         self.messageRepository = messageRepository
+        self.wikiRepository = wikiRepository
         self.apiKey = apiKey
         self.model = model
     }
 
     func send(query: String, conversationId: String) async throws -> ChatResponse {
-        let results = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
-        let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
+        let hits = try await gatherHits(query: query)
+        let messages = try buildMessages(query: query, conversationId: conversationId, hits: hits)
         let answer = try await completeChat(messages: messages)
         let cleaned = Self.stripCitations(answer)
-        return ChatResponse(answer: cleaned, sources: Self.sources(for: cleaned, from: results))
+        return ChatResponse(answer: cleaned, references: Self.references(for: cleaned, hits: hits))
     }
 
     func sendStream(query: String, conversationId: String,
                     onToken: @Sendable @escaping (String) -> Void) async throws -> ChatResponse {
-        let results = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
-        let messages = try buildMessages(query: query, conversationId: conversationId, results: results)
+        let hits = try await gatherHits(query: query)
+        let messages = try buildMessages(query: query, conversationId: conversationId, hits: hits)
 
         let answer = try await streamChat(messages: messages, onToken: onToken)
         let cleaned = Self.stripCitations(answer)
-        return ChatResponse(answer: cleaned, sources: Self.sources(for: cleaned, from: results))
+        return ChatResponse(answer: cleaned, references: Self.references(for: cleaned, hits: hits))
+    }
+
+    // MARK: - 위키 우선 검색 → 메모 드릴다운 (§7)
+
+    /// 검색 결과 묶음: 관련 위키(우선) + 보완용 메모.
+    private struct Hits: Sendable {
+        let wikis: [WikiSearchResult]
+        let memos: [SearchResult]
+        var isEmpty: Bool { wikis.isEmpty && memos.isEmpty }
+    }
+
+    /// 위키를 먼저 검색하고, 부족분을 메모로 드릴다운한다. 위키가 이미 요약한
+    /// 구성 메모는 컨텍스트에서 제외해 중복·비용을 줄인다(§7-2).
+    private func gatherHits(query: String) async throws -> Hits {
+        let wikiRaw = try await searchEngine.searchWikis(query: query, topN: 3,
+                                                         minScore: Self.relevanceFloor)
+        let wikis = Self.relevantWikis(from: wikiRaw)
+
+        var memos = Self.relevantSources(from: try await searchEngine.search(query: query, topN: 5))
+        if !wikis.isEmpty {
+            let memberIds = Set(wikis.flatMap { (try? wikiRepository.noteIds(forWiki: $0.wiki.id)) ?? [] })
+            memos = Array(memos.filter { !memberIds.contains($0.source.id) }.prefix(3))
+        }
+        return Hits(wikis: wikis, memos: memos)
     }
 
     // MARK: - 출처 필터링 / 인용 정리
@@ -81,13 +110,29 @@ actor LunaChatEngine: ChatEngineProtocol {
         return Array(results.filter { $0.score >= cutoff }.prefix(5))
     }
 
+    /// 위키 히트에 동일한 관련성 컷오프를 적용(위키 우선이라 상한은 넉넉히 3).
+    nonisolated static func relevantWikis(from results: [WikiSearchResult]) -> [WikiSearchResult] {
+        guard let top = results.first?.score else { return [] }
+        let cutoff = max(relevanceFloor, top - relativeMargin)
+        return Array(results.filter { $0.score >= cutoff }.prefix(3))
+    }
+
     /// 일반 지식 답변(규칙2)임을 알리는 마커. 답변 첫 줄에 위치한다.
     nonisolated static let noMemoryMarker = "💡 메모리에 관련 정보가 없어"
 
     /// LLM이 일반 지식으로 답한 경우(💡 마커) 출처를 표시하지 않는다.
     /// 임베딩이 느슨하게 매칭돼 하한을 넘었더라도, 실제 답변이 메모리를 쓰지 않았으면 출처를 비운다.
-    nonisolated static func sources(for answer: String, from results: [SearchResult]) -> [SearchResult] {
-        answer.hasPrefix(noMemoryMarker) ? [] : results
+    /// 위키(우선) → 메모 순으로 배지를 구성한다(§7-5).
+    nonisolated private static func references(for answer: String, hits: Hits) -> [ChatReference] {
+        guard !answer.hasPrefix(noMemoryMarker) else { return [] }
+        var refs: [ChatReference] = []
+        for w in hits.wikis {
+            refs.append(ChatReference(kind: .wiki, id: w.wiki.id, title: w.wiki.title, score: w.score))
+        }
+        for m in hits.memos {
+            refs.append(ChatReference(kind: .memo, id: m.source.id, title: m.source.displayTitle, score: m.score))
+        }
+        return refs
     }
 
     /// 답변 본문에 남을 수 있는 대괄호 번호 인용([1], [23] 등)을 제거한다.
@@ -126,7 +171,7 @@ actor LunaChatEngine: ChatEngineProtocol {
     // MARK: - Message assembly
 
     private func buildMessages(query: String, conversationId: String,
-                               results: [SearchResult]) throws -> [[String: String]] {
+                               hits: Hits) throws -> [[String: String]] {
         var messages: [[String: String]] = [["role": "system", "content": instructions]]
 
         let previous = try messageRepository.fetchLast(conversationId: conversationId, limit: historyLimit)
@@ -137,15 +182,16 @@ actor LunaChatEngine: ChatEngineProtocol {
             ])
         }
 
-        let contextBlock = buildContext(from: results)
+        let contextBlock = buildContext(hits: hits)
         let userContent: String
-        if results.isEmpty {
+        if hits.isEmpty {
             userContent = "Question: \(query)\n\nNo relevant memories found. Answer using your general knowledge."
         } else {
             userContent = """
                 Question: \(query)
 
-                Sources from user's memory:
+                Sources from user's knowledge (WIKI pages are synthesized topic summaries; \
+                MEMOS are individual captured notes):
                 \(contextBlock)
                 """
         }
@@ -153,16 +199,32 @@ actor LunaChatEngine: ChatEngineProtocol {
         return messages
     }
 
-    private func buildContext(from sources: [SearchResult]) -> String {
+    /// 위키 페이지(우선) → 메모 순으로 컨텍스트를 조립한다(§7).
+    private func buildContext(hits: Hits) -> String {
         var context = ""
         var remaining = maxContextChars
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
 
-        for (index, result) in sources.enumerated() {
+        for (index, result) in hits.wikis.enumerated() {
+            guard remaining > 0 else { break }
+            let wiki = result.wiki
+            var entry = "[WIKI \(index + 1)] \(wiki.title)\n"
+            if let summary = wiki.summary, !summary.isEmpty {
+                entry += "Summary: \(summary)\n"
+            }
+            if let markdown = wikiRepository.readMarkdown(wiki), !markdown.isEmpty {
+                entry += String(markdown.prefix(remaining))
+            }
+            entry += "\n---\n"
+            remaining -= entry.count
+            context += entry
+        }
+
+        for (index, result) in hits.memos.enumerated() {
             guard remaining > 0 else { break }
             let source = result.source
-            var entry = "[\(index + 1)] "
+            var entry = "[MEMO \(index + 1)] "
 
             if let app = source.application {
                 entry += "(\(app)"

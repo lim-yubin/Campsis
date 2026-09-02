@@ -5,9 +5,10 @@ struct WikiListView: View {
     @Environment(AppState.self) private var appState
     @State private var wikis: [Wiki] = []
     @State private var relatedCounts: [String: Int] = [:]
+    @State private var path: [Wiki] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if wikis.isEmpty {
                     emptyState
@@ -25,8 +26,20 @@ struct WikiListView: View {
                 WikiDetailView(wiki: wiki)
             }
         }
-        .onAppear(perform: load)
+        .onAppear {
+            load()
+            openPendingWiki()
+        }
+        .onChange(of: appState.pendingWikiId) { _, _ in openPendingWiki() }
         .onReceive(NotificationCenter.default.publisher(for: .wikiUpdated)) { _ in load() }
+    }
+
+    /// 채팅 위키 배지 등에서 지정한 위키를 상세로 push.
+    private func openPendingWiki() {
+        guard let id = appState.pendingWikiId,
+              let wiki = try? appState.wikiRepository.fetch(id: id) else { return }
+        appState.pendingWikiId = nil
+        path = [wiki]
     }
 
     private var emptyState: some View {

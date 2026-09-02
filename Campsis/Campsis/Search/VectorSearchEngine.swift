@@ -7,16 +7,25 @@ nonisolated struct SearchResult: Sendable {
     let rank: Int
 }
 
+/// 위키 페이지 의미검색 결과 (Phase 8.8·8.9).
+nonisolated struct WikiSearchResult: Sendable {
+    let wiki: Wiki
+    let score: Float
+    let rank: Int
+}
+
 actor VectorSearchEngine {
     private let embeddingService: EmbeddingService
     private let embeddingRepository: EmbeddingRepository
     private let sourceRepository: SourceRepository
+    private let wikiRepository: WikiRepository
 
     init(embeddingService: EmbeddingService, embeddingRepository: EmbeddingRepository,
-         sourceRepository: SourceRepository) {
+         sourceRepository: SourceRepository, wikiRepository: WikiRepository) {
         self.embeddingService = embeddingService
         self.embeddingRepository = embeddingRepository
         self.sourceRepository = sourceRepository
+        self.wikiRepository = wikiRepository
     }
 
     func search(query: String, topN: Int = 20, minScore: Float = 0.3) async throws -> [SearchResult] {
@@ -51,6 +60,36 @@ actor VectorSearchEngine {
             }
         }
 
+        return results
+    }
+
+    /// 위키 페이지 임베딩(OW2)을 대상으로 의미검색한다 (채팅 위키 우선·사이드바 검색).
+    func searchWikis(query: String, topN: Int = 5, minScore: Float = 0.3) async throws -> [WikiSearchResult] {
+        try await embeddingService.loadIfNeeded()
+
+        let queryVector = try await embeddingService.embed(query)
+        let records = try wikiRepository.fetchAllEmbeddings(
+            model: EmbeddingService.modelName,
+            version: EmbeddingService.embeddingVersion
+        )
+        guard !records.isEmpty else { return [] }
+
+        var scored: [(wikiId: String, score: Float)] = []
+        scored.reserveCapacity(records.count)
+        for record in records {
+            let similarity = cosineSimilarity(queryVector, record.vectorAsFloats())
+            if similarity >= minScore {
+                scored.append((wikiId: record.wikiId, score: similarity))
+            }
+        }
+        scored.sort { $0.score > $1.score }
+
+        var results: [WikiSearchResult] = []
+        for (rank, item) in scored.prefix(topN).enumerated() {
+            if let wiki = try? wikiRepository.fetch(id: item.wikiId) {
+                results.append(WikiSearchResult(wiki: wiki, score: item.score, rank: rank + 1))
+            }
+        }
         return results
     }
 

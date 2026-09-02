@@ -2,16 +2,16 @@ import SwiftUI
 
 struct MessageBubbleView: View {
     let message: Message
-    let sources: [Source]
+    let references: [ChatReference]
     @Environment(AppState.self) private var appState
     @State private var showAllSources = false
     @State private var copied = false
 
     private let maxVisibleSources = 4
 
-    /// 출처(메모리)가 연결된 답변만 마크다운으로 렌더하고 복사 버튼을 제공한다.
+    /// 출처(위키/메모)가 연결된 답변만 마크다운으로 렌더하고 복사 버튼을 제공한다.
     private var isMarkdownAnswer: Bool {
-        message.role == .assistant && !sources.isEmpty
+        message.role == .assistant && !references.isEmpty
     }
 
     var body: some View {
@@ -73,15 +73,15 @@ struct MessageBubbleView: View {
         .help(copied ? "복사됨" : "복사")
     }
 
-    /// 답변 하단에 항상 보이는 컴팩트 출처 칩 행. (관련도 순서 유지)
+    /// 답변 하단에 항상 보이는 컴팩트 출처 칩 행. (위키 우선, 관련도 순서 유지)
     @ViewBuilder
     private var sourcesChips: some View {
-        let visible = showAllSources ? sources : Array(sources.prefix(maxVisibleSources))
-        let overflow = sources.count - visible.count
+        let visible = showAllSources ? references : Array(references.prefix(maxVisibleSources))
+        let overflow = references.count - visible.count
 
         FlowLayout(spacing: 6) {
-            ForEach(visible) { source in
-                sourceChip(source)
+            ForEach(visible) { ref in
+                referenceChip(ref)
             }
             if overflow > 0 {
                 Button {
@@ -100,54 +100,69 @@ struct MessageBubbleView: View {
         .frame(maxWidth: 460, alignment: .leading)
     }
 
-    private func sourceChip(_ source: Source) -> some View {
-        Button {
-            appState.inspectorSource = source
-            appState.inspectorMode = .source
-            appState.showInspector = true
+    private func referenceChip(_ ref: ChatReference) -> some View {
+        let active = isActive(ref)
+        let tint: Color = ref.kind == .wiki ? .chatAccent : .accentColor
+        return Button {
+            open(ref)
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: iconName(for: source.type))
+                Image(systemName: icon(for: ref))
                     .font(.caption2)
-                    .foregroundStyle(isPreviewing(source) ? Color.accentColor : .secondary)
-                Text(sourceTitle(source))
+                    .foregroundStyle(active ? tint : .secondary)
+                Text(kindLabel(ref))
+                    .font(.system(size: 9, weight: .bold))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(tint.opacity(0.16), in: Capsule())
+                    .foregroundStyle(tint)
+                Text(ref.title)
                     .font(.caption)
                     .lineLimit(1)
             }
             .padding(.vertical, 4)
             .padding(.horizontal, 8)
-            .frame(maxWidth: 220, alignment: .leading)
+            .frame(maxWidth: 240, alignment: .leading)
             .background(
-                isPreviewing(source) ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12),
+                active ? tint.opacity(0.18) : Color.secondary.opacity(0.12),
                 in: Capsule()
             )
             .overlay(
-                Capsule().stroke(isPreviewing(source) ? Color.accentColor : Color.clear, lineWidth: 1)
+                Capsule().stroke(active ? tint : Color.clear, lineWidth: 1)
             )
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(source.displayTitle)
+        .help(ref.title)
     }
 
-    private func iconName(for type: SourceType) -> String {
-        switch type {
-        case .selectedText: return "text.quote"
-        case .screenshot: return "camera"
-        case .note: return "note.text"
-        case .voice: return "waveform"
-        case .file: return "doc"
+    /// 출처 클릭: 메모는 인스펙터 미리보기, 위키는 나의 위키에서 열기.
+    private func open(_ ref: ChatReference) {
+        switch ref.kind {
+        case .memo:
+            guard let source = try? appState.sourceRepository.fetch(id: ref.id) else { return }
+            appState.inspectorSource = source
+            appState.inspectorMode = .source
+            appState.showInspector = true
+        case .wiki:
+            appState.pendingWikiId = ref.id
+            NotificationCenter.default.post(name: .openWiki, object: nil)
         }
     }
 
-    private func sourceTitle(_ source: Source) -> String {
-        source.displayTitle
+    private func kindLabel(_ ref: ChatReference) -> String {
+        ref.kind == .wiki ? "위키" : "메모"
     }
 
-    /// 현재 인스펙터에서 미리보기 중인 출처인지.
-    private func isPreviewing(_ source: Source) -> Bool {
-        appState.showInspector
+    private func icon(for ref: ChatReference) -> String {
+        ref.kind == .wiki ? "book.closed.fill" : "note.text"
+    }
+
+    /// 현재 인스펙터에서 미리보기 중인 메모인지(하이라이트).
+    private func isActive(_ ref: ChatReference) -> Bool {
+        ref.kind == .memo
+            && appState.showInspector
             && appState.inspectorMode == .source
-            && appState.inspectorSource?.id == source.id
+            && appState.inspectorSource?.id == ref.id
     }
 }

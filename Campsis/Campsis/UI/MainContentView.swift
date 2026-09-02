@@ -137,6 +137,10 @@ struct MainContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .requestNewChat)) { _ in
             createNewChat()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openWiki)) { _ in
+            // 채팅 위키 배지 클릭 → 나의 위키로 전환(WikiListView가 pendingWikiId로 상세 push).
+            selection = .wiki
+        }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView(isPresented: $showOnboarding)
         }

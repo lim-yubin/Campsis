@@ -107,6 +107,8 @@ final class AppState {
     var pendingConversations: Set<String> = []
     /// 검색 → 채팅 브리지: 새 채팅 입력창에 미리 채워넣을 질의.
     var pendingChatPrefill: String?
+    /// 채팅 위키 배지 → 나의 위키에서 열어야 할 위키 id (Phase 8.8).
+    var pendingWikiId: String?
     var modelStatus: ModelStatus = .idle
     var streamingText: [String: String] = [:]
     private var generationTasks: [String: Task<Void, Never>] = [:]
@@ -162,7 +164,7 @@ final class AppState {
                     }
                 }
                 content = response.answer
-                sourceIds = response.sources.map { $0.source.id }
+                sourceIds = response.references.map { $0.token }
             } catch is CancellationError {
                 let partial = await MainActor.run { appState.streamingText[conversationId] ?? "" }
                 content = partial.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -362,7 +364,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let engine = VectorSearchEngine(
             embeddingService: embedService,
             embeddingRepository: embedRepo,
-            sourceRepository: repo
+            sourceRepository: repo,
+            wikiRepository: appState.wikiRepository
         )
 
         let resynthesizer = WikiResynthesizer(
@@ -433,6 +436,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.chatEngineRef = LunaChatEngine(
                 searchEngine: searchEngine,
                 messageRepository: appState.messageRepository,
+                wikiRepository: appState.wikiRepository,
                 apiKey: key
             )
             NSLog("[Campsis] Chat engine → GPT-5.6 Luna (cloud)")

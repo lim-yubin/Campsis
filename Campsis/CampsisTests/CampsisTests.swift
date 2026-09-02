@@ -587,6 +587,31 @@ struct MockWikiSynthesizer: WikiSynthesizer {
     }
 }
 
+@Suite struct ChatWikiReferenceTests {
+    @Test func referenceTokenFormat() {
+        #expect(ChatReference(kind: .wiki, id: "abc", title: "T", score: 0.5).token == "wiki:abc")
+        #expect(ChatReference(kind: .memo, id: "xyz", title: "M", score: 0.5).token == "memo:xyz")
+    }
+
+    @Test func relevantWikisAppliesCutoff() {
+        let a = Wiki(title: "A", topicSlug: "a")
+        let b = Wiki(title: "B", topicSlug: "b")
+        let c = Wiki(title: "C", topicSlug: "c")
+        let results = [
+            WikiSearchResult(wiki: a, score: 0.80, rank: 1),
+            WikiSearchResult(wiki: b, score: 0.75, rank: 2),
+            WikiSearchResult(wiki: c, score: 0.30, rank: 3),  // cutoff max(0.4, 0.7)=0.7 미만
+        ]
+        let filtered = LunaChatEngine.relevantWikis(from: results)
+        #expect(filtered.count == 2)
+        #expect(filtered.map { $0.wiki.id } == [a.id, b.id])
+    }
+
+    @Test func relevantWikisEmptyWhenNoResults() {
+        #expect(LunaChatEngine.relevantWikis(from: []).isEmpty)
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

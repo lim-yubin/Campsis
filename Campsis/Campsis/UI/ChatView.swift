@@ -7,7 +7,7 @@ struct ChatView: View {
 
     @State private var messages: [Message] = []
     @State private var inputText = ""
-    @State private var sourceCache: [String: [Source]] = [:]
+    @State private var refCache: [String: [ChatReference]] = [:]
 
     private var isGenerating: Bool { appState.pendingConversations.contains(conversationId) }
     private var streamingText: String { appState.streamingText[conversationId] ?? "" }
@@ -65,7 +65,7 @@ struct ChatView: View {
                         ForEach(messages) { message in
                             MessageBubbleView(
                                 message: message,
-                                sources: sourceCache[message.id] ?? []
+                                references: refCache[message.id] ?? []
                             )
                             .id(message.id)
                         }
@@ -149,10 +149,33 @@ struct ChatView: View {
     }
 
     private func loadSources(for message: Message) {
-        let ids = message.referencedSourceIds()
-        guard !ids.isEmpty else { return }
-        let sources = ids.compactMap { try? appState.sourceRepository.fetch(id: $0) }
-        sourceCache[message.id] = sources
+        let tokens = message.referencedSourceIds()
+        guard !tokens.isEmpty else { return }
+        var refs: [ChatReference] = []
+        for token in tokens {
+            let (kind, id) = Self.parseToken(token)
+            switch kind {
+            case .wiki:
+                if let wiki = try? appState.wikiRepository.fetch(id: id) {
+                    refs.append(ChatReference(kind: .wiki, id: id, title: wiki.title, score: 0))
+                }
+            case .memo:
+                if let source = try? appState.sourceRepository.fetch(id: id) {
+                    refs.append(ChatReference(kind: .memo, id: id, title: source.displayTitle, score: 0))
+                }
+            }
+        }
+        refCache[message.id] = refs
+    }
+
+    /// "wiki:<id>" / "memo:<id>" 토큰 파싱. 콜론이 없으면 레거시(구 버전=메모 id).
+    private static func parseToken(_ token: String) -> (ChatReferenceKind, String) {
+        if let colon = token.firstIndex(of: ":") {
+            let kindStr = String(token[..<colon])
+            let id = String(token[token.index(after: colon)...])
+            if let kind = ChatReferenceKind(rawValue: kindStr) { return (kind, id) }
+        }
+        return (.memo, token)
     }
 
     private func sendMessage() {

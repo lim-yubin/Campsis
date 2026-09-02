@@ -18,8 +18,7 @@ nonisolated struct WikiRepository: Sendable {
     func save(_ wiki: inout Wiki) throws {
         wiki.updatedAt = Date()
         try dbQueue.write { [wiki] db in
-            var w = wiki
-            try w.save(db)
+            try wiki.save(db)
         }
     }
 
@@ -97,8 +96,7 @@ nonisolated struct WikiRepository: Sendable {
         try markdown.data(using: .utf8)?.write(to: url, options: .atomic)
         revision.snapshotPath = AppPaths.relativePath(from: url)
         try dbQueue.write { [revision] db in
-            var r = revision
-            try r.insert(db)
+            try revision.insert(db)
         }
     }
 
@@ -131,7 +129,7 @@ nonisolated struct WikiRepository: Sendable {
     /// 메모를 위키에 등록(멱등) 후 member_count 갱신.
     func addNote(_ sourceId: String, toWiki wikiId: String, matchScore: Double? = nil) throws {
         try dbQueue.write { db in
-            var link = NoteWikiLink(sourceId: sourceId, wikiId: wikiId, matchScore: matchScore)
+            let link = NoteWikiLink(sourceId: sourceId, wikiId: wikiId, matchScore: matchScore)
             try link.save(db)
         }
         try refreshMemberCount(wikiId: wikiId)
@@ -193,7 +191,7 @@ nonisolated struct WikiRepository: Sendable {
     func addWikiLink(from fromWikiId: String, to toWikiId: String, weight: Double? = nil) throws {
         guard fromWikiId != toWikiId else { return }
         try dbQueue.write { db in
-            var link = WikiWikiLink(fromWikiId: fromWikiId, toWikiId: toWikiId, weight: weight)
+            let link = WikiWikiLink(fromWikiId: fromWikiId, toWikiId: toWikiId, weight: weight)
             try link.save(db)
         }
     }
@@ -216,7 +214,7 @@ nonisolated struct WikiRepository: Sendable {
             try WikiEmbeddingRecord
                 .filter(Column("wiki_id") == wikiId)
                 .deleteAll(db)
-            var record = WikiEmbeddingRecord(wikiId: wikiId, vector: vector,
+            let record = WikiEmbeddingRecord(wikiId: wikiId, vector: vector,
                                              model: model, version: version)
             try record.insert(db)
         }

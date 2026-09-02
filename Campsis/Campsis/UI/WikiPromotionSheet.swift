@@ -13,6 +13,7 @@ struct WikiPromotionSheet: View {
     @Environment(AppState.self) private var appState
 
     @State private var isComputing = true
+    @State private var isExecuting = false
     @State private var suggestions: [WikiRoutingSuggestion] = []
     /// sourceId → 선택된 목적지 키 집합. 목적지 키: "wiki:<id>" 또는 "new:<slug>".
     @State private var assignment: [String: Set<String>] = [:]
@@ -212,13 +213,17 @@ struct WikiPromotionSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button {
-                    // TODO(8.5): 승격 실행(링크+백링크) → 8.6 재합성.
+                    execute()
                 } label: {
-                    Text("정리 실행")
+                    if isExecuting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("정리 실행")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(true)
-                .help("승격 실행(8.5)·재합성(8.6)에서 연결됩니다")
+                .disabled(isComputing || isExecuting || assignedCount == 0)
+                .help("선택한 메모를 위키에 등록합니다")
             }
         }
         .padding(16)
@@ -256,6 +261,61 @@ struct WikiPromotionSheet: View {
             }
         }
         return map
+    }
+
+    // MARK: - 승격 실행 (8.5)
+
+    private var assignedCount: Int {
+        suggestions.filter { !(assignment[$0.source.id] ?? []).isEmpty }.count
+    }
+
+    /// sourceId → (wikiId → 매칭 점수). 감사·튜닝용 match_score 전달.
+    private var scoreMap: [String: [String: Double]] {
+        var map: [String: [String: Double]] = [:]
+        for s in suggestions {
+            var inner: [String: Double] = [:]
+            for c in s.candidates { inner[c.wiki.id] = c.score }
+            map[s.source.id] = inner
+        }
+        return map
+    }
+
+    private func buildRequest() -> WikiPromotionRequest {
+        // destKey → sourceIds
+        var byDest: [String: [String]] = [:]
+        for (sid, keys) in assignment {
+            for k in keys { byDest[k, default: []].append(sid) }
+        }
+        let scores = scoreMap
+        let destinations: [WikiPromotionRequest.Destination] = byDest.map { key, sourceIds in
+            if key.hasPrefix(Self.wikiPrefix) {
+                let wikiId = String(key.dropFirst(Self.wikiPrefix.count))
+                var s: [String: Double] = [:]
+                for sid in sourceIds { if let v = scores[sid]?[wikiId] { s[sid] = v } }
+                return .init(existingWikiId: wikiId, newTitle: nil, sourceIds: sourceIds, scores: s)
+            } else {
+                let title = newTitles[key] ?? String(key.dropFirst(Self.newPrefix.count))
+                return .init(existingWikiId: nil, newTitle: title, sourceIds: sourceIds, scores: [:])
+            }
+        }
+        return WikiPromotionRequest(destinations: destinations)
+    }
+
+    private func execute() {
+        isExecuting = true
+        let request = buildRequest()
+        let promoter = WikiPromoter(wikiRepository: appState.wikiRepository)
+        Task {
+            let ok: Bool = await Task.detached {
+                do { _ = try promoter.execute(request); return true }
+                catch {
+                    NSLog("[Campsis] Wiki promotion failed: \(error)")
+                    return false
+                }
+            }.value
+            isExecuting = false
+            onClose(ok)
+        }
     }
 
     // MARK: - 편집 조작

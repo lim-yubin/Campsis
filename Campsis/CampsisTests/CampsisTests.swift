@@ -428,6 +428,77 @@ struct WikiRepositoryTests {
     }
 }
 
+@Suite struct WikiPromoterTests {
+    @Test func createsNewWikiAndLinks() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let promoter = WikiPromoter(wikiRepository: wikiRepo)
+
+        var s1 = Source(type: .note, content: "메모1")
+        var s2 = Source(type: .note, content: "메모2")
+        try sourceRepo.save(&s1)
+        try sourceRepo.save(&s2)
+
+        let req = WikiPromotionRequest(destinations: [
+            .init(existingWikiId: nil, newTitle: "생산성", sourceIds: [s1.id, s2.id],
+                  scores: [s1.id: 0.8])
+        ])
+        let result = try promoter.execute(req)
+
+        #expect(result.createdWikiIds.count == 1)
+        let wiki = try wikiRepo.fetch(topicSlug: "생산성")
+        #expect(wiki != nil)
+        #expect(wiki?.memberCount == 2)
+        #expect(wiki?.markdownStatus == .pending)
+        #expect(try wikiRepo.noteIds(forWiki: wiki!.id).count == 2)
+    }
+
+    @Test func reusesExistingSlugInsteadOfDuplicating() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let promoter = WikiPromoter(wikiRepository: wikiRepo)
+
+        var existing = Wiki(title: "생산성", topicSlug: "생산성")
+        try wikiRepo.save(&existing)
+        var s = Source(type: .note, content: "메모")
+        try sourceRepo.save(&s)
+
+        let req = WikiPromotionRequest(destinations: [
+            .init(existingWikiId: nil, newTitle: "생산성", sourceIds: [s.id], scores: [:])
+        ])
+        let result = try promoter.execute(req)
+
+        #expect(result.createdWikiIds.isEmpty)   // 재사용
+        #expect(try wikiRepo.count() == 1)
+        #expect(try wikiRepo.noteIds(forWiki: existing.id) == [s.id])
+    }
+
+    @Test func coMembershipCreatesBacklinks() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let promoter = WikiPromoter(wikiRepository: wikiRepo)
+
+        var a = Wiki(title: "A", topicSlug: "a")
+        var b = Wiki(title: "B", topicSlug: "b")
+        try wikiRepo.save(&a)
+        try wikiRepo.save(&b)
+        var s = Source(type: .note, content: "공유 메모")
+        try sourceRepo.save(&s)
+
+        let req = WikiPromotionRequest(destinations: [
+            .init(existingWikiId: a.id, newTitle: nil, sourceIds: [s.id], scores: [:]),
+            .init(existingWikiId: b.id, newTitle: nil, sourceIds: [s.id], scores: [:])
+        ])
+        try promoter.execute(req)
+
+        #expect(try wikiRepo.relatedWikiIds(forWiki: a.id) == [b.id])
+        #expect(try wikiRepo.relatedWikiIds(forWiki: b.id) == [a.id])
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

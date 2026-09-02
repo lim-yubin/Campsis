@@ -1,15 +1,82 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 enum SidebarSection: Hashable {
     case chat(String)
-    case memories
+    case library(LibraryItem)
+}
+
+private extension NSResponder {
+    /// 응답자 체인을 따라 올라가며 NSSplitViewController를 찾는다.
+    var enclosingSplitViewController: NSSplitViewController? {
+        sequence(first: self) { $0.nextResponder }
+            .compactMap { $0 as? NSSplitViewController }
+            .first
+    }
+}
+
+/// NavigationSplitView의 사이드바 컬럼 최소/최대 너비를 하부 AppKit으로 실제 강제한다.
+/// navigationSplitViewColumnWidth의 min/max가 macOS에서 강제되지 않는 문제를 우회.
+/// minWidth == maxWidth로 주면 고정(드래그 불가), 다르게 주면 그 범위 내 리사이즈 가능.
+private struct SidebarWidthLimits: NSViewRepresentable {
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+    /// columnVisibility 등 상태가 바뀔 때 updateNSView가 다시 호출되도록 하는 토큰.
+    var reapplyToken: Bool = false
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // 즉시 + 지연 재적용. 접었다 펼칠 때 NSSplitView가 max 두께를 리셋하는 것을 보정.
+        apply(from: nsView)
+        for delay in [0.05, 0.35, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                apply(from: nsView)
+            }
+        }
+    }
+
+    private func apply(from nsView: NSView) {
+        guard let splitVC = nsView.enclosingSplitViewController,
+              let sidebarItem = splitVC.splitViewItems.first else { return }
+        sidebarItem.minimumThickness = minWidth
+        sidebarItem.maximumThickness = maxWidth
+    }
+}
+
+/// 툴바용 아이콘 버튼. 호버 시 둥근 배경이 나타난다.
+private struct ToolbarIconButton: View {
+    let systemName: String
+    let help: String
+    var yOffset: CGFloat = 0
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .imageScale(.large)
+                .offset(y: yOffset) // 심볼 여백 시각 보정(그림만)
+                .frame(width: 26, height: 24)
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(hovering ? 0.12 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+    }
 }
 
 struct MainContentView: View {
     @Environment(AppState.self) var appState
     @State private var conversations: [Conversation] = []
     @State private var selection: SidebarSection? = nil
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var librarySearch = ""
     @State private var isDragOver = false
     @State private var importMessage: String?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -18,14 +85,35 @@ struct MainContentView: View {
     var body: some View {
         @Bindable var appState = appState
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340) // 초기 폭 힌트(실제 강제는 SidebarWidthLimits)
+                // 시스템 토글을 숨기고 [작성][토글]을 직접 배치해 순서·간격을 제어한다.
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    // 펼쳤을 때: 사이드바 우상단에 [작성][토글].
+                    if columnVisibility != .detailOnly {
+                        ToolbarItem(placement: .primaryAction) {
+                            topIconCluster
+                        }
+                    }
+                }
         } detail: {
             // 메인 영역 안에서 좌우로 나누는 커스텀 분할. OS 인스펙터 컬럼과 달리
             // 열어도 창이 커지지 않고, 분할선으로 메인을 최소 폭(320)까지 확실히 줄일 수 있다.
             InspectorSplit {
                 detailView
+            }
+            // 메인 영역 최소 너비. 사이드바를 넓혀도 이 아래로는 줄지 않는다.
+            .frame(minWidth: 520, maxWidth: .infinity)
+            .toolbar {
+                // 접었을 때: 창 좌상단에 동일하게 [작성][토글] 유지.
+                if columnVisibility == .detailOnly {
+                    ToolbarItem(placement: .navigation) {
+                        topIconCluster
+                            .padding(.horizontal, 8) // 감싸는 배경 좌우 여백(대칭)
+                    }
+                }
             }
         }
         .overlay {
@@ -55,27 +143,33 @@ struct MainContentView: View {
 
     // MARK: - Sidebar
 
+    // [작성][토글] 두 아이콘 묶음. 펼침/접힘 상태 모두 동일한 순서로 재사용.
+    private var topIconCluster: some View {
+        HStack(spacing: 4) {
+            ToolbarIconButton(systemName: "sidebar.left", help: "사이드바 토글") {
+                withAnimation { toggleSidebar() }
+            }
+            ToolbarIconButton(systemName: "square.and.pencil", help: "새 채팅", yOffset: -1.5, action: createNewChat)
+        }
+    }
+
+    private func toggleSidebar() {
+        columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+    }
+
     private var sidebar: some View {
         VStack(spacing: 0) {
-            Button(action: createNewChat) {
-                Label("새 채팅", systemImage: "plus.bubble")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-
-            Divider().padding(.vertical, 4)
+            searchField
 
             List(selection: $selection) {
-                Section("메모리") {
-                    Label("모든 메모리", systemImage: "brain")
-                        .tag(SidebarSection.memories)
+                Section("라이브러리") {
+                    ForEach(LibraryItem.allCases) { item in
+                        Label(item.label, systemImage: item.systemImage)
+                            .tag(SidebarSection.library(item))
+                    }
                 }
 
-                Section("채팅") {
+                Section {
                     if conversations.isEmpty {
                         Text("아직 대화가 없습니다")
                             .font(.caption)
@@ -94,32 +188,78 @@ struct MainContentView: View {
                             }
                         }
                     }
+                } header: {
+                    Text("대화")
                 }
             }
             .listStyle(.sidebar)
 
             sidebarFooter
         }
+        // navigationSplitViewColumnWidth는 macOS에서 강제되지 않으므로,
+        // 하부 NSSplitViewItem의 min/max 두께로 240~340 범위를 실제 강제한다.
+        .background(SidebarWidthLimits(minWidth: 240, maxWidth: 240,
+                                       reapplyToken: columnVisibility == .detailOnly))
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("기억 검색...", text: $librarySearch)
+                .textFieldStyle(.plain)
+            if !librarySearch.isEmpty {
+                Button {
+                    librarySearch = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .onChange(of: librarySearch) { _, newValue in
+            // 검색어를 입력하면 결과를 볼 수 있도록 전체 기억으로 전환.
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            switch selection {
+            case .library:
+                break
+            default:
+                selection = .library(.all)
+            }
+        }
     }
 
     private var sidebarFooter: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(spacing: 8) {
-                statusIndicator
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
+            // 상태·설정을 좌측에 고정 간격으로 묶고, 남는 폭은 오른쪽 빈 공간으로 흘려보낸다.
+            // → 사이드바를 넓혀도 요소 사이 간격이 벌어지지 않는다.
+            HStack(spacing: 10) {
                 SettingsLink {
                     Image(systemName: "gearshape")
-                        .font(.callout)
+                        .font(.body)
                         .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("설정")
+
+                statusIndicator
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
         }
     }
 
@@ -191,8 +331,9 @@ struct MainContentView: View {
                         InspectorToggleButton()
                     }
                 }
-        case .memories:
-            MemoriesView()
+        case .library(let item):
+            MemoriesView(filter: item, searchText: $librarySearch)
+                .id(item)
         case nil:
             VStack(spacing: 14) {
                 Image(systemName: "brain.head.profile")

@@ -2,9 +2,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct MemoriesView: View {
+    /// 사이드바가 소유하는 필터·검색어. 필터별로 뷰가 .id로 재생성된다.
+    let filter: LibraryItem
+    @Binding var searchText: String
+
     @Environment(AppState.self) var appState
     @State private var sources: [Source] = []
-    @State private var selectedFilter: SourceFilter = .all
     @State private var selectedSource: Source?
     @State private var showFileImporter = false
     @State private var importStatus: String?
@@ -12,7 +15,6 @@ struct MemoriesView: View {
     @State private var selectedDate: Date? = nil
     @State private var showCalendar = false
     @State private var calendarDate: Date = Date()
-    @State private var searchText = ""
 
     private var filteredCount: Int {
         groupedSources.reduce(0) { $0 + $1.sources.count }
@@ -61,12 +63,11 @@ struct MemoriesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                searchField
                 filterBar
                 Divider()
                 sourceList
             }
-            .navigationTitle("메모리")
+            .navigationTitle(filter.label)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     InspectorToggleButton()
@@ -75,8 +76,12 @@ struct MemoriesView: View {
             .navigationDestination(item: $selectedSource) { source in
                 SourceDetailView(source: source)
             }
-            .onAppear { loadSources() }
-            .onChange(of: selectedFilter) { _, _ in loadSources() }
+            .onAppear {
+                if filter == .today {
+                    selectedDate = Calendar.current.startOfDay(for: Date())
+                }
+                loadSources()
+            }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [.pdf, .plainText, .png, .jpeg],
@@ -87,42 +92,8 @@ struct MemoriesView: View {
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("기억 검색...", text: $searchText)
-                .textFieldStyle(.plain)
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("검색어 지우기")
-            }
-        }
-        .padding(8)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-        .padding(.horizontal)
-        .padding(.top, 8)
-    }
-
     private var filterBar: some View {
         HStack(spacing: 10) {
-            // 세그먼트(6칸) 대신 컴팩트한 드롭다운을 써서 필터바의 최소 폭을 낮춘다.
-            // → 분할선 드래그 시에도 상세 컬럼이 320까지 줄어들 수 있게 함.
-            Picker("Filter", selection: $selectedFilter) {
-                ForEach(SourceFilter.allCases) { filter in
-                    Text(filter.label).tag(filter)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
-
             Spacer()
 
             if let status = importStatus {
@@ -311,8 +282,8 @@ struct MemoriesView: View {
 
     private func loadSources() {
         do {
-            switch selectedFilter {
-            case .all:
+            switch filter {
+            case .all, .today:
                 sources = try appState.sourceRepository.fetchAll()
             case .text:
                 sources = try appState.sourceRepository.fetchAll(type: .selectedText)
@@ -331,19 +302,32 @@ struct MemoriesView: View {
     }
 }
 
-enum SourceFilter: String, CaseIterable, Identifiable {
-    case all, text, screenshot, note, voice, file
+enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
+    case all, today, text, screenshot, note, voice, file
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .all: return "전체"
+        case .all: return "전체 기억"
+        case .today: return "오늘"
         case .text: return "텍스트"
         case .screenshot: return "스크린샷"
         case .note: return "메모"
         case .voice: return "음성"
         case .file: return "파일"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .all: return "square.stack"
+        case .today: return "clock"
+        case .text: return "text.quote"
+        case .screenshot: return "camera"
+        case .note: return "note.text"
+        case .voice: return "waveform"
+        case .file: return "doc"
         }
     }
 }

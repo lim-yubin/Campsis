@@ -14,6 +14,8 @@ extension Notification.Name {
     static let captureSaved = Notification.Name("captureSaved")
     static let requestNewChat = Notification.Name("requestNewChat")
     static let aiSettingsChanged = Notification.Name("aiSettingsChanged")
+    /// 위키가 생성/재합성되어 목록·상세를 새로고침해야 할 때(Phase 8).
+    static let wikiUpdated = Notification.Name("wikiUpdated")
 }
 
 /// AI 생성 제공자 (D36, D38, D48). AppStorage 키 "aiProvider"에 rawValue 저장.

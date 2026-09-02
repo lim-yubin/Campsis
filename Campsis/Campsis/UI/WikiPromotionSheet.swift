@@ -316,7 +316,11 @@ struct WikiPromotionSheet: View {
             }.value
             isExecuting = false
 
-            // D.1 즉시 반영은 끝. D.2 종합 재합성은 백그라운드(비차단)로 진행.
+            // D.1 즉시 반영은 끝. 위키 목록이 새 위키(정리 중)를 바로 보이도록 알림.
+            if result != nil {
+                NotificationCenter.default.post(name: .wikiUpdated, object: nil)
+            }
+            // D.2 종합 재합성은 백그라운드(비차단)로 진행.
             if let result, let resynthesizer {
                 Task.detached { await resynthesizer.resynthesize(result) }
             }

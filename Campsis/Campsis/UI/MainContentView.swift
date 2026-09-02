@@ -5,6 +5,7 @@ import AppKit
 enum SidebarSection: Hashable {
     case chat(String)
     case library(LibraryItem)
+    case wiki
 }
 
 private extension NSResponder {
@@ -167,6 +168,8 @@ struct MainContentView: View {
                         Label(item.label, systemImage: item.systemImage)
                             .tag(SidebarSection.library(item))
                     }
+                    Label("나의 위키", systemImage: "books.vertical")
+                        .tag(SidebarSection.wiki)
                 }
 
                 Section {
@@ -334,6 +337,8 @@ struct MainContentView: View {
         case .library(let item):
             MemoriesView(filter: item, searchText: $librarySearch)
                 .id(item)
+        case .wiki:
+            WikiListView()
         case nil:
             VStack(spacing: 14) {
                 Image(systemName: "brain.head.profile")

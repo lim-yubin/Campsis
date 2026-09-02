@@ -77,6 +77,7 @@ actor WikiResynthesizer {
             wiki.markdownStatus = hadContent ? .completed : .failed
             try? wikiRepository.save(&wiki)
         }
+        await MainActor.run { NotificationCenter.default.post(name: .wikiUpdated, object: nil) }
     }
 
     // MARK: - 재료 구성

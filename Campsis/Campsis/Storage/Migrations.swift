@@ -90,5 +90,11 @@ nonisolated enum AppMigrations {
                 t.add(column: "title", .text)
             }
         }
+
+        migrator.registerMigration("v7-markdown-edited") { db in
+            try db.alter(table: "source") { t in
+                t.add(column: "markdown_edited", .boolean).notNull().defaults(to: false)
+            }
+        }
     }
 }

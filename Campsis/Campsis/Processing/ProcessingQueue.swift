@@ -59,6 +59,7 @@ actor ProcessingQueue {
         do {
             let note = try await markdownGenerator.generate(from: source)
             // writeMarkdown이 markdown_path/status/updated_at를 갱신한다.
+            source.markdownEdited = false   // Luna 자동 생성물(수동 편집 아님)
             try repository.writeMarkdown(note.markdown, for: &source)
             source.title = note.title
             source.summary = note.summary
@@ -133,6 +134,17 @@ actor ProcessingQueue {
     func reembedSource(id: String) async {
         guard let source = try? repository.fetch(id: id) else { return }
         await embedSource(source)
+    }
+
+    /// 원본 내용을 편집한 뒤 정리본을 재생성하고 재임베딩한다 (B3).
+    /// 텍스트 계열(selectedText/note/file) 원본 편집에만 사용한다.
+    func regenerate(id: String, newContent: String) async {
+        guard var source = try? repository.fetch(id: id) else { return }
+        source.content = newContent
+        source.markdownStatus = .pending   // 정리본을 다시 만들어야 함
+        try? repository.update(&source)
+        // Luna 재호출로 제목/요약/태그/MD 재생성 후 MD 기준 재임베딩 (generator 없으면 no-op).
+        await processSource(&source)
     }
 
     func embedAllMissing() async {

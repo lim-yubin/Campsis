@@ -48,6 +48,8 @@ nonisolated struct Source: Codable, Sendable, Identifiable, Hashable {
     var markdownPath: String?
     var markdownStatus: MarkdownStatus
     var markdownUpdatedAt: Date?
+    /// 정리본(MD)이 사용자에 의해 직접 수정되었는지. 원본 편집 재생성 시 덮어쓰기 경고에 사용.
+    var markdownEdited: Bool
 
     init(
         type: SourceType,
@@ -84,6 +86,7 @@ nonisolated struct Source: Codable, Sendable, Identifiable, Hashable {
         self.markdownPath = nil
         self.markdownStatus = .pending
         self.markdownUpdatedAt = nil
+        self.markdownEdited = false
     }
 }
 
@@ -109,6 +112,7 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case markdownPath = "markdown_path"
         case markdownStatus = "markdown_status"
         case markdownUpdatedAt = "markdown_updated_at"
+        case markdownEdited = "markdown_edited"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -130,6 +134,7 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case markdownPath = "markdown_path"
         case markdownStatus = "markdown_status"
         case markdownUpdatedAt = "markdown_updated_at"
+        case markdownEdited = "markdown_edited"
     }
 }
 

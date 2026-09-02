@@ -101,7 +101,10 @@ final class AppState {
     let messageRepository: MessageRepository
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
+    var searchEngineRef: (any Sendable)?
     var pendingConversations: Set<String> = []
+    /// 검색 → 채팅 브리지: 새 채팅 입력창에 미리 채워넣을 질의.
+    var pendingChatPrefill: String?
     var modelStatus: ModelStatus = .idle
     var streamingText: [String: String] = [:]
     private var generationTasks: [String: Task<Void, Never>] = [:]
@@ -112,6 +115,7 @@ final class AppState {
     var inspectorMode: InspectorMode = .source
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
+    var searchEngine: VectorSearchEngine? { searchEngineRef as? VectorSearchEngine }
 
     init(sourceRepository: SourceRepository, embeddingRepository: EmbeddingRepository,
          embeddingService: EmbeddingService, conversationRepository: ConversationRepository,
@@ -357,6 +361,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         await MainActor.run {
             self.searchEngine = engine
+            self.appState.searchEngineRef = engine
             self.configureChatEngine()
         }
 

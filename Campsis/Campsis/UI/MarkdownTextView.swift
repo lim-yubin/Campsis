@@ -45,6 +45,46 @@ enum MarkdownClipboard {
     }
 }
 
+// MARK: - 공용 복사 토스트
+
+/// "복사되었습니다" 같은 짧은 알림을 화면 하단에 잠깐 띄우는 공용 modifier.
+/// 상세/미리보기/채팅 등 복사 어피던스를 일관되게 만든다.
+struct CopyToastModifier: ViewModifier {
+    @Binding var message: String?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) {
+                if let message {
+                    Label(message, systemImage: "checkmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(.quaternary, lineWidth: 1))
+                        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: message)
+            .onChange(of: message) { _, newValue in
+                guard newValue != nil else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation { message = nil }
+                }
+            }
+    }
+}
+
+extension View {
+    /// 복사 완료 토스트를 표시. `message`에 문자열을 넣으면 잠깐 떴다 사라진다.
+    func copyToast(_ message: Binding<String?>) -> some View {
+        modifier(CopyToastModifier(message: message))
+    }
+}
+
 struct MarkdownTextView: NSViewRepresentable {
     let text: String
 

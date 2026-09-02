@@ -25,6 +25,24 @@ struct SourceDetailView: View {
     @State private var showOverwriteConfirm = false
     @State private var pendingOriginal: String?
 
+    // Phase 5: 복사 토스트
+    @State private var toastMessage: String?
+
+    /// 섹션 우상단 복사 버튼. 복사 후 공용 토스트를 띄운다.
+    private func copyIconButton(_ text: String) -> some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            toastMessage = "복사되었습니다"
+        } label: {
+            Image(systemName: "doc.on.doc")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+        .help("복사")
+    }
+
     /// 원본 텍스트를 편집할 수 있는 유형(이미지/음성 제외).
     private var canEditOriginal: Bool {
         switch source.type {
@@ -33,9 +51,10 @@ struct SourceDetailView: View {
         }
     }
 
-    init(source: Source) {
+    init(source: Source, initialTab: SourceDetailTab? = nil) {
         self.source = source
-        _selectedTab = State(initialValue: source.markdownPath != nil ? .markdown : .original)
+        let defaultTab: SourceDetailTab = source.markdownPath != nil ? .markdown : .original
+        _selectedTab = State(initialValue: initialTab ?? defaultTab)
         _markdownUpdatedAt = State(initialValue: source.markdownUpdatedAt)
         _displayContent = State(initialValue: source.content)
         _noteManuallyEdited = State(initialValue: source.markdownEdited)
@@ -45,13 +64,7 @@ struct SourceDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                Picker("보기", selection: $selectedTab) {
-                    Text("정리본").tag(SourceDetailTab.markdown)
-                    Text("원본").tag(SourceDetailTab.original)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .disabled(isEditing || isEditingOriginal || isRegenerating)
+                tabHeader
 
                 Divider()
 
@@ -65,6 +78,7 @@ struct SourceDetailView: View {
             .padding(24)
         }
         .frame(minWidth: 500, minHeight: 400)
+        .copyToast($toastMessage)
         .navigationTitle(source.displayTitle)
         .task { loadMarkdown() }
         .toolbar { toolbarContent }
@@ -94,8 +108,14 @@ struct SourceDetailView: View {
                 if let md = markdownText, !md.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
-                            Button("마크다운으로 복사") { MarkdownClipboard.copyMarkdown(md) }
-                            Button("일반 텍스트로 복사") { MarkdownClipboard.copyPlain(md) }
+                            Button("마크다운으로 복사") {
+                                MarkdownClipboard.copyMarkdown(md)
+                                toastMessage = "복사되었습니다"
+                            }
+                            Button("일반 텍스트로 복사") {
+                                MarkdownClipboard.copyPlain(md)
+                                toastMessage = "복사되었습니다"
+                            }
                         } label: {
                             Label("복사", systemImage: "doc.on.doc")
                         }
@@ -106,9 +126,10 @@ struct SourceDetailView: View {
                     Button {
                         startEditing()
                     } label: {
-                        Label(markdownText?.isEmpty == false ? "편집" : "직접 작성",
+                        Label(markdownText?.isEmpty == false ? "정리본 다듬기" : "직접 작성",
                               systemImage: "square.and.pencil")
                     }
+                    .help("정리본의 표현을 직접 다듬어요. 내용 변경은 원본 수정으로 하세요.")
                 }
             }
         }
@@ -124,6 +145,49 @@ struct SourceDetailView: View {
     }
 
     // MARK: - Tabs
+
+    /// 정리본을 주 화면으로 두고, 원본은 보조 토글로 접근하도록 하는 헤더.
+    @ViewBuilder
+    private var tabHeader: some View {
+        if selectedTab == .markdown {
+            HStack(spacing: 10) {
+                Label("정리본", systemImage: "sparkles")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    withAnimation { selectedTab = .original }
+                } label: {
+                    Label(originalButtonLabel, systemImage: "doc.plaintext")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isEditing || isEditingOriginal || isRegenerating)
+            }
+        } else {
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation { selectedTab = .markdown }
+                } label: {
+                    Label("정리본으로", systemImage: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isEditingOriginal || isRegenerating)
+
+                Label("원본", systemImage: "doc.plaintext")
+                    .font(.headline)
+                Spacer()
+            }
+        }
+    }
+
+    /// "원본 보기 (N자)" — 텍스트 계열이면 글자 수 표시.
+    private var originalButtonLabel: String {
+        if let count = (displayContent ?? source.content)?.count, count > 0 {
+            return "원본 보기 (\(count)자)"
+        }
+        return "원본 보기"
+    }
 
     @ViewBuilder
     private var markdownTab: some View {
@@ -144,7 +208,7 @@ struct SourceDetailView: View {
 
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
-                    Text("AI가 정리한 노트예요. 원본은 '원본' 탭에서 확인하세요.")
+                    Text("AI가 원본을 정리한 노트예요. 내용을 바꾸려면 원본을 수정하세요.")
                     if let updated = markdownUpdatedAt {
                         Text("· \(updated, style: .date)")
                     }
@@ -160,7 +224,7 @@ struct SourceDetailView: View {
     @ViewBuilder
     private var markdownEditor: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("마크다운으로 편집")
+            Label("고급: 표현만 다듬기 — 내용을 바꾸려면 원본을 수정하세요.", systemImage: "wand.and.stars")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -387,7 +451,7 @@ struct SourceDetailView: View {
             if isEditingOriginal {
                 GroupBox("원본 편집") { originalEditor }
             } else if let content, !content.isEmpty {
-                GroupBox("내용") {
+                GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         if showFullContent {
                             ScrollView {
@@ -420,10 +484,12 @@ struct SourceDetailView: View {
                                 Button {
                                     startEditingOriginal()
                                 } label: {
-                                    Label("원본 편집", systemImage: "square.and.pencil")
+                                    Label("원본 수정 → 정리본 재생성", systemImage: "arrow.triangle.2.circlepath")
                                 }
                                 .font(.caption)
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help("원본을 수정하면 AI가 정리본을 새로 만들어요. (주 편집 경로)")
                             }
 
                             if source.type == .file, let path = source.filePath {
@@ -435,6 +501,12 @@ struct SourceDetailView: View {
                                 .buttonStyle(.borderless)
                             }
                         }
+                    }
+                } label: {
+                    HStack {
+                        Text("내용")
+                        Spacer()
+                        copyIconButton(content)
                     }
                 }
             }
@@ -451,18 +523,30 @@ struct SourceDetailView: View {
                 }
             }
             if let ocrText = source.ocrText, !ocrText.isEmpty {
-                GroupBox("OCR 텍스트") {
+                GroupBox {
                     Text(ocrText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    HStack {
+                        Text("OCR 텍스트")
+                        Spacer()
+                        copyIconButton(ocrText)
+                    }
                 }
             }
         case .voice:
-            if let transcript = source.transcript {
-                GroupBox("전사") {
+            if let transcript = source.transcript, !transcript.isEmpty {
+                GroupBox {
                     Text(transcript)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    HStack {
+                        Text("전사")
+                        Spacer()
+                        copyIconButton(transcript)
+                    }
                 }
             }
         }
@@ -477,9 +561,15 @@ struct SourceDetailView: View {
     }
 
     private func summarySection(_ summary: String) -> some View {
-        GroupBox("AI 요약") {
+        GroupBox {
             Text(summary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            HStack {
+                Text("AI 요약")
+                Spacer()
+                copyIconButton(summary)
+            }
         }
     }
 

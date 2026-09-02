@@ -1,6 +1,6 @@
 # Campsis Roadmap
 
-마지막 업데이트: 2026-08-31
+마지막 업데이트: 2026-09-02
 
 ---
 
@@ -244,6 +244,7 @@ improvement-plan.md + 코드 분석 통합. 유료 기능(BYOM/하이브리드 �
 
 | 날짜       | 변경 내용                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-02 | **핵심 UX/UI 개선 6종 배치(메모리·정리본·원본·채팅 출처·검색).** (P1) 메모리 열기 인터랙션 통일 — 인스펙터 미리보기(`SourcePreviewView`) 헤더에 `전체 보기`/`원본`/`원문 열기` 승격 액션 추가, 미리보기→편집 가능한 `SourceDetailView`를 시트로 연결(`SourceDetailView(initialTab:)` 파라미터 추가), 채팅 출처·인스펙터 메모리 목록에 현재 미리보기 항목 선택 하이라이트. (P2) `SourceDetailView`를 정리본 주 화면 + 원본 보조 토글(`원본 보기 (N자)` ↔ `정리본으로`)로 재구성, 편집 모델 라벨 명확화(원본 수정→정리본 재생성=주 경로, 정리본 직접수정=고급). (P3) `MessageBubbleView`의 접힘형 `출처 N개`를 항상 보이는 컴팩트 칩 행으로 교체(타입 아이콘+제목, 클릭→미리보기, 관련도순, `+N개 더보기`, `FlowLayout` 재사용). (P4) `MemoryRowView`에 1줄 요약 스니펫 + 주제 태그 미니칩 + 스크린샷/이미지 썸네일 + 선택 하이라이트. (P5) OCR/전사/요약/원본 내용 GroupBox에 복사 버튼 + 공용 `복사되었습니다` 토스트 modifier(`copyToast`, 상세·미리보기 일관 적용; 채팅은 기존 인라인 체크마크 유지). (P6) 사이드바 전역 검색을 `VectorSearchEngine` 의미검색으로 승격(`AppState.searchEngineRef` 노출, 350ms 디바운스, 텍스트 정확일치+의미유사 병합) + `이 검색어로 채팅하기` 브리지(`pendingChatPrefill`→새 채팅 입력창 프리필). **참고:** P1의 SourceViewer 완전 통합은 회귀 위험이 커 미리보기→상세 시트 브리지로 대체(상세 편집 로직은 `SourceDetailView` 단일 유지). 파일 간 변경이 얽혀 Phase별 독립 커밋 대신 단일 커밋으로 반영. 빌드 통과 |
 | 2026-09-02 | **사이드바 상단 툴바 정리 + 너비 제어.** 새 채팅 버튼을 대화 섹션 헤더에서 사이드바 상단 툴바의 아이콘 묶음(`[토글][작성]`, `topIconCluster`)으로 이동 — 시스템 사이드바 토글을 숨기고(`.toolbar(removing: .sidebarToggle)`) 커스텀 토글(`columnVisibility` 제어)로 대체해 순서·간격을 직접 지정, 호버 배경 지원(`ToolbarIconButton`). 접힘 시에도 디테일 툴바에 동일 묶음 유지. 사이드바 너비는 `navigationSplitViewColumnWidth`가 macOS에서 강제되지 않아, 하부 `NSSplitViewItem`의 min/max 두께(240~340)를 `NSViewRepresentable`(`SidebarWidthLimits`)로 직접 강제 — 접었다 펼칠 때 max가 리셋되는 문제는 `columnVisibility` 변화 토큰 + 지연 재적용으로 보정. 메인(디테일) 최소 너비 520 지정. 빌드 통과 |
 | 2026-09-02 | **사이드바 라이브러리 재설계(캔버스 방향 반영).** 사이드바를 상단 검색창 + `라이브러리`(전체 기억·오늘·텍스트·스크린샷·메모·음성·파일) + `대화`(헤더 + 버튼) 구조로 재구성. 필터 소유권을 사이드바로 이전: `SidebarSection.memories`→`.library(LibraryItem)`, 기존 `SourceFilter`→`LibraryItem`(label·systemImage 추가). `MemoriesView`는 `filter`/`searchText` 바인딩을 받아 내부 필터 드롭다운·검색필드 제거(달력·개수·가져오기 유지), navigationTitle에 필터명 표시, `오늘`은 onAppear에서 오늘 날짜로 초기화. 사이드바 검색은 전역 검색으로 동작(입력 시 `.library(.all)`로 전환해 결과 표시). 상단 "새 채팅" 버튼은 대화 섹션 헤더의 + 로 이동. 개수 표시는 이번 범위 제외. 빌드·테스트 통과 |
 | 2026-09-02 | **B1 → 스킵.** 인스펙터 `메모리` 탭에서 항목 탭 시 `SourceDetailView`를 push로 통일하려던 작업(embedded 옵션 + NavigationStack). 시제품 구현 후 사용자가 불필요하다고 판단해 되돌림 — 인스펙터는 현행대로 채팅 출처 미리보기(정리본) + 메모리 목록 읽기전용 스왑 유지, 전체 상세/편집은 메모리 메뉴에서 수행하는 흐름으로 충분. 커밋 전 로컬 상태에서 revert되어 코드 변경 없음. E1(문서 연결)·E2(마인드맵)은 계속 별도 Phase 보류 |

@@ -2,8 +2,16 @@ import SwiftUI
 
 /// 오른쪽 분할 패널. 채팅 답변의 출처 정리본을 미리 보거나, 전체 메모리 목록을
 /// 컴팩트하게 탐색해 메모리와 채팅을 나란히 볼 수 있게 한다. (읽기 전용 미리보기)
+/// 인스펙터 미리보기에서 "전체 보기"로 열 상세 요청.
+private struct FullDetailRequest: Identifiable {
+    let source: Source
+    let tab: SourceDetailTab?
+    var id: String { source.id + (tab.map { "\($0)" } ?? "") }
+}
+
 struct InspectorPanelView: View {
     @Environment(AppState.self) private var appState
+    @State private var fullDetail: FullDetailRequest?
 
     var body: some View {
         @Bindable var appState = appState
@@ -23,7 +31,9 @@ struct InspectorPanelView: View {
             switch appState.inspectorMode {
             case .source:
                 if let source = appState.inspectorSource {
-                    SourcePreviewView(source: source)
+                    SourcePreviewView(source: source) { tab in
+                        fullDetail = FullDetailRequest(source: source, tab: tab)
+                    }
                 } else {
                     ContentUnavailableView(
                         "출처를 선택하세요",
@@ -32,12 +42,26 @@ struct InspectorPanelView: View {
                     )
                 }
             case .memories:
-                InspectorMemoriesList()
+                InspectorMemoriesList { source in
+                    fullDetail = FullDetailRequest(source: source, tab: nil)
+                }
             }
         }
         // 폭은 인스펙터 컬럼(.inspectorColumnWidth) 한 곳에서만 관리한다.
         // 여기서 minWidth/idealWidth를 또 지정하면 리사이즈 시 두 제약이 충돌해 튕김이 발생.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 미리보기 → 편집 가능한 전체 상세로 승격.
+        .sheet(item: $fullDetail) { req in
+            NavigationStack {
+                SourceDetailView(source: req.source, initialTab: req.tab)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("닫기") { fullDetail = nil }
+                        }
+                    }
+            }
+            .frame(minWidth: 640, minHeight: 560)
+        }
     }
 }
 
@@ -64,9 +88,12 @@ struct InspectorToggleButton: View {
 /// 인스펙터에서 보여주는 읽기 전용 정리본. 정리본(MD)이 없으면 원본 콘텐츠로 폴백한다.
 struct SourcePreviewView: View {
     let source: Source
+    /// "전체 보기"/"원본" 등에서 편집 가능한 상세 화면을 열 때 호출. 탭 지정 가능.
+    var onOpenFull: ((SourceDetailTab?) -> Void)? = nil
     @Environment(AppState.self) private var appState
     @State private var markdown: String?
     @State private var loaded = false
+    @State private var toastMessage: String?
 
     var body: some View {
         ScrollView {
@@ -98,11 +125,12 @@ struct SourcePreviewView: View {
             }
             .padding(16)
         }
+        .copyToast($toastMessage)
         .task(id: source.id) { load() }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(source.displayTitle)
@@ -115,7 +143,56 @@ struct SourcePreviewView: View {
                 Spacer(minLength: 8)
                 copyMenu
             }
+            if onOpenFull != nil {
+                actionBar
+            }
         }
+    }
+
+    /// 미리보기 → 편집 가능한 상세로 이어지는 승격 액션 모음.
+    private var actionBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                onOpenFull?(nil)
+            } label: {
+                Label("전체 보기", systemImage: "arrow.up.forward.square")
+            }
+
+            if canShowOriginal {
+                Button {
+                    onOpenFull?(.original)
+                } label: {
+                    Label("원본", systemImage: "doc.plaintext")
+                }
+            }
+
+            if let url = openableURL {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("원문 열기", systemImage: "arrow.up.right.square")
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .font(.caption)
+    }
+
+    private var canShowOriginal: Bool {
+        source.content?.isEmpty == false
+            || source.ocrText?.isEmpty == false
+            || source.transcript?.isEmpty == false
+    }
+
+    private var openableURL: URL? {
+        if let urlString = source.url, let url = URL(string: urlString) { return url }
+        if source.type == .file, let path = source.filePath {
+            return AppPaths.absoluteURL(from: path)
+        }
+        return nil
     }
 
     // B2: 정리본 복사 — 마크다운 원문 / 일반 텍스트
@@ -123,8 +200,14 @@ struct SourcePreviewView: View {
     private var copyMenu: some View {
         if let md = markdown, !md.isEmpty {
             Menu {
-                Button("마크다운으로 복사") { MarkdownClipboard.copyMarkdown(md) }
-                Button("일반 텍스트로 복사") { MarkdownClipboard.copyPlain(md) }
+                Button("마크다운으로 복사") {
+                    MarkdownClipboard.copyMarkdown(md)
+                    toastMessage = "복사되었습니다"
+                }
+                Button("일반 텍스트로 복사") {
+                    MarkdownClipboard.copyPlain(md)
+                    toastMessage = "복사되었습니다"
+                }
             } label: {
                 Image(systemName: "doc.on.doc")
             }
@@ -156,6 +239,7 @@ struct SourcePreviewView: View {
 
 /// 인스펙터용 컴팩트 메모리 목록. 항목 선택 시 정리본 미리보기로 전환한다.
 private struct InspectorMemoriesList: View {
+    var onOpenFull: ((Source) -> Void)? = nil
     @Environment(AppState.self) private var appState
     @State private var sources: [Source] = []
 
@@ -163,11 +247,14 @@ private struct InspectorMemoriesList: View {
         List {
             // A4: 메모리 메뉴와 동일한 MemoryRowView를 재사용해 콘텐츠를 크고 명확하게 표시
             ForEach(sources) { source in
-                MemoryRowView(source: source)
+                MemoryRowView(source: source, isSelected: appState.inspectorSource?.id == source.id)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         appState.inspectorSource = source
                         appState.inspectorMode = .source
+                    }
+                    .contextMenu {
+                        Button("전체 보기") { onOpenFull?(source) }
                     }
                     .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
             }

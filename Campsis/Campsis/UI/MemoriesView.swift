@@ -16,6 +16,10 @@ struct MemoriesView: View {
     @State private var showCalendar = false
     @State private var calendarDate: Date = Date()
 
+    // Phase 6: 의미검색 결과(소스 ID) + 디바운스 태스크
+    @State private var semanticMatchIDs: Set<String> = []
+    @State private var searchDebounce: Task<Void, Never>?
+
     private var filteredCount: Int {
         groupedSources.reduce(0) { $0 + $1.sources.count }
     }
@@ -57,7 +61,39 @@ struct MemoriesView: View {
         guard !query.isEmpty else { return true }
         let fields = [source.content, source.summary, source.ocrText,
                       source.transcript, source.userNote, source.windowTitle, source.application]
-        return fields.contains { $0?.lowercased().contains(query) == true }
+        // 정확 일치(텍스트 포함) 우선, 없으면 의미검색 결과 포함 여부로 판정.
+        if fields.contains(where: { $0?.lowercased().contains(query) == true }) { return true }
+        return semanticMatchIDs.contains(source.id)
+    }
+
+    /// 사이드바 검색어를 의미검색으로 승격. 디바운스 후 임베딩 유사도 상위 결과를 병합한다.
+    private func runSemanticSearch(_ rawQuery: String) {
+        searchDebounce?.cancel()
+        let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, let engine = appState.searchEngine else {
+            semanticMatchIDs = []
+            return
+        }
+        searchDebounce = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            if Task.isCancelled { return }
+            do {
+                let results = try await engine.search(query: trimmed, topN: 30, minScore: 0.25)
+                if Task.isCancelled { return }
+                let ids = Set(results.map { $0.source.id })
+                await MainActor.run { semanticMatchIDs = ids }
+            } catch {
+                NSLog("[Campsis] Semantic search failed: \(error)")
+            }
+        }
+    }
+
+    /// 현재 검색어로 새 채팅을 시작하도록 브리지.
+    private func startChatWithSearch() {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        appState.pendingChatPrefill = trimmed
+        NotificationCenter.default.post(name: .requestNewChat, object: nil)
     }
 
     var body: some View {
@@ -81,6 +117,10 @@ struct MemoriesView: View {
                     selectedDate = Calendar.current.startOfDay(for: Date())
                 }
                 loadSources()
+                runSemanticSearch(searchText)
+            }
+            .onChange(of: searchText) { _, newValue in
+                runSemanticSearch(newValue)
             }
             .fileImporter(
                 isPresented: $showFileImporter,
@@ -211,6 +251,11 @@ struct MemoriesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    searchChatBridge
+                        .listRowInsets(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+                        .listRowSeparator(.hidden)
+                }
                 ForEach(groups, id: \.key) { group in
                     DisclosureGroup(
                         isExpanded: Binding(
@@ -225,7 +270,7 @@ struct MemoriesView: View {
                         )
                     ) {
                         ForEach(group.sources) { source in
-                            MemoryRowView(source: source)
+                            MemoryRowView(source: source, isSelected: selectedSource?.id == source.id)
                                 .contentShape(Rectangle())
                                 .onTapGesture { selectedSource = source }
                                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
@@ -269,6 +314,31 @@ struct MemoriesView: View {
                 Text("삭제된 기억은 복구할 수 없습니다.")
             }
         }
+    }
+
+    /// 검색 결과 상단의 "이 검색어로 채팅하기" 브리지 버튼.
+    private var searchChatBridge: some View {
+        Button {
+            startChatWithSearch()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "bubble.left.and.text.bubble.right")
+                    .foregroundStyle(Color.chatAccent)
+                Text("‘\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))’ 로 채팅하기")
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.chatAccent.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func deleteSource(_ source: Source) {
@@ -334,21 +404,34 @@ enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
 
 struct MemoryRowView: View {
     let source: Source
+    var isSelected: Bool = false
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .font(.title3)
-                .foregroundStyle(iconColor)
-                .frame(width: 28)
+            leadingVisual
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(source.displayTitle)
                     .font(.title3)
                     .lineLimit(1)
 
-                HStack(spacing: 8) {
+                if let snippet {
+                    Text(snippet)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 6) {
+                    ForEach(topicChips, id: \.self) { topic in
+                        Text(topic)
+                            .font(.caption2)
+                            .padding(.vertical, 1)
+                            .padding(.horizontal, 6)
+                            .background(Color.secondary.opacity(0.14), in: Capsule())
+                            .foregroundStyle(.secondary)
+                    }
                     if let app = source.application {
                         Text(app)
                             .font(.subheadline)
@@ -375,7 +458,11 @@ struct MemoryRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isHovered ? Color.primary.opacity(0.07) : Color.clear)
+                .fill(rowBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -383,6 +470,66 @@ struct MemoryRowView: View {
                 isHovered = hovering
             }
         }
+    }
+
+    /// 좌측 시각 요소: 스크린샷/이미지는 썸네일, 그 외는 타입 아이콘.
+    @ViewBuilder
+    private var leadingVisual: some View {
+        if let thumbnail {
+            Image(nsImage: thumbnail)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        } else {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(iconColor)
+                .frame(width: 28)
+        }
+    }
+
+    private var rowBackground: Color {
+        if isSelected { return Color.accentColor.opacity(0.12) }
+        if isHovered { return Color.primary.opacity(0.07) }
+        return Color.clear
+    }
+
+    /// 제목 아래 1줄 요약 스니펫. summary 우선, 없으면 본문 앞부분.
+    private var snippet: String? {
+        let raw = source.summary ?? source.content ?? source.ocrText ?? source.transcript
+        guard let raw else { return nil }
+        let cleaned = raw
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty, cleaned != source.displayTitle else { return nil }
+        return cleaned
+    }
+
+    /// 주제 태그 미니칩(최대 3개).
+    private var topicChips: [String] {
+        guard let json = source.topics,
+              let data = json.data(using: .utf8),
+              let topics = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Array(topics.prefix(3))
+    }
+
+    /// 스크린샷/이미지 파일용 썸네일.
+    private var thumbnail: NSImage? {
+        if source.type == .screenshot, let path = source.screenshotPath {
+            return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+        }
+        if source.type == .file, let path = source.filePath {
+            let ext = (path as NSString).pathExtension.lowercased()
+            if ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains(ext) {
+                return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+            }
+        }
+        return nil
     }
 
     private var iconName: String {

@@ -40,7 +40,14 @@ struct ChatView: View {
                 appState.stopGeneration(conversationId: conversationId)
             }
         }
-        .onAppear { loadMessages() }
+        .onAppear {
+            loadMessages()
+            // 검색 → 채팅 브리지: 대기 중인 질의가 있으면 입력창에 채운다.
+            if let prefill = appState.pendingChatPrefill {
+                inputText = prefill
+                appState.pendingChatPrefill = nil
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .chatResponseCompleted)) { notification in
             guard let convId = notification.userInfo?["conversationId"] as? String,
                   convId == conversationId else { return }

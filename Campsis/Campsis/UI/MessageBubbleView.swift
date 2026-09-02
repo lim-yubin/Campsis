@@ -129,8 +129,6 @@ struct MessageBubbleView: View {
     }
 
     private func sourceTitle(_ source: Source) -> String {
-        if let title = source.windowTitle, !title.isEmpty { return title }
-        if let content = source.content, !content.isEmpty { return String(content.prefix(50)) }
-        return source.type.rawValue.capitalized
+        source.displayTitle
     }
 }

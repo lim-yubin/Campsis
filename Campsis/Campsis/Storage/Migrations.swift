@@ -84,5 +84,11 @@ nonisolated enum AppMigrations {
                 t.add(column: "markdown_updated_at", .datetime)
             }
         }
+
+        migrator.registerMigration("v6-title") { db in
+            try db.alter(table: "source") { t in
+                t.add(column: "title", .text)
+            }
+        }
     }
 }

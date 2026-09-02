@@ -105,11 +105,9 @@ struct SourcePreviewView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let title = source.windowTitle, !title.isEmpty {
-                        Text(title)
-                            .font(.headline)
-                            .lineLimit(2)
-                    }
+                    Text(source.displayTitle)
+                        .font(.headline)
+                        .lineLimit(2)
                     Text(source.capturedAt.formatted(.dateTime.year().month().day().hour().minute()))
                         .font(.caption)
                         .foregroundStyle(.secondary)

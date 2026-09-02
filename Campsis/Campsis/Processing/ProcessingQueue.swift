@@ -60,6 +60,7 @@ actor ProcessingQueue {
             let note = try await markdownGenerator.generate(from: source)
             // writeMarkdown이 markdown_path/status/updated_at를 갱신한다.
             try repository.writeMarkdown(note.markdown, for: &source)
+            source.title = note.title
             source.summary = note.summary
             source.topics = encodeTopics(note.tags)
             source.processingStatus = .completed

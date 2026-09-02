@@ -27,6 +27,8 @@ nonisolated enum MarkdownStatus: String, Codable, DatabaseValueConvertible, Send
 nonisolated struct Source: Codable, Sendable, Identifiable, Hashable {
     var id: String
     var type: SourceType
+    /// Luna가 생성한 간결한 제목(목록 표시용). 처리 전에는 nil.
+    var title: String?
     var content: String?
     var screenshotPath: String?
     var filePath: String?
@@ -62,6 +64,7 @@ nonisolated struct Source: Codable, Sendable, Identifiable, Hashable {
     ) {
         self.id = UUID().uuidString
         self.type = type
+        self.title = nil
         self.content = content
         self.screenshotPath = screenshotPath
         self.filePath = filePath
@@ -88,7 +91,7 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
     static let databaseTableName = "source"
 
     enum Columns: String, ColumnExpression {
-        case id, type, content
+        case id, type, title, content
         case screenshotPath = "screenshot_path"
         case filePath = "file_path"
         case audioPath = "audio_path"
@@ -109,7 +112,7 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content
+        case id, type, title, content
         case screenshotPath = "screenshot_path"
         case filePath = "file_path"
         case audioPath = "audio_path"
@@ -127,5 +130,48 @@ nonisolated extension Source: FetchableRecord, PersistableRecord {
         case markdownPath = "markdown_path"
         case markdownStatus = "markdown_status"
         case markdownUpdatedAt = "markdown_updated_at"
+    }
+}
+
+nonisolated extension SourceType {
+    /// 사람이 읽기 좋은 한국어 유형명(제목 폴백용).
+    var displayName: String {
+        switch self {
+        case .selectedText: return "텍스트"
+        case .screenshot: return "스크린샷"
+        case .note: return "메모"
+        case .voice: return "음성"
+        case .file: return "파일"
+        }
+    }
+}
+
+nonisolated extension Source {
+    /// 목록·미리보기·출처 표시에 공통으로 쓰는 사람이 읽기 좋은 제목.
+    /// 우선순위: Luna 생성 제목 → 요약 → 창 제목 → 본문 첫 줄 → 유형명.
+    var displayTitle: String {
+        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Self.firstLine(title)
+        }
+        if let summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Self.firstLine(summary)
+        }
+        if let windowTitle, !windowTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Self.firstLine(windowTitle)
+        }
+        if let content, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Self.firstLine(content)
+        }
+        return type.displayName
+    }
+
+    /// 첫 번째 비어있지 않은 줄을 다듬어 최대 40자로 반환.
+    private static func firstLine(_ text: String, limit: Int = 40) -> String {
+        let line = text
+            .split(whereSeparator: \.isNewline)
+            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return line.count > limit ? String(line.prefix(limit)) + "…" : line
     }
 }

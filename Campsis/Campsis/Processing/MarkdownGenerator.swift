@@ -47,7 +47,7 @@ actor LunaMarkdownGenerator: MarkdownGenerator {
         You convert a user's captured memory into a structured knowledge note. \
         Respond with a SINGLE JSON object with exactly these keys:
         {
-          "title": string — a concise title capturing the essence,
+          "title": string — a concise title capturing the essence, MAX 40 characters, no trailing period,
           "summary": string — 1-2 sentence summary,
           "tags": string[] — 2-5 relevant keywords,
           "markdown": string — the full note in Markdown (H1 title, short summary, then headings/bullets/bold as helpful)

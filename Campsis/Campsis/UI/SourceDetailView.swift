@@ -45,7 +45,7 @@ struct SourceDetailView: View {
             .padding(24)
         }
         .frame(minWidth: 500, minHeight: 400)
-        .navigationTitle(source.windowTitle ?? "메모리")
+        .navigationTitle(source.displayTitle)
         .task { loadMarkdown() }
         .toolbar { toolbarContent }
     }
@@ -244,10 +244,8 @@ struct SourceDetailView: View {
                     .padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
 
-                if let title = source.windowTitle {
-                    Text(title)
-                        .font(.title2.bold())
-                }
+                Text(source.displayTitle)
+                    .font(.title2.bold())
             }
             Spacer()
             VStack(alignment: .trailing) {

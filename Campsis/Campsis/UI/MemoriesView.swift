@@ -360,7 +360,7 @@ struct MemoryRowView: View {
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(titleText)
+                Text(source.displayTitle)
                     .font(.title3)
                     .lineLimit(1)
 
@@ -419,19 +419,6 @@ struct MemoryRowView: View {
         case .voice: return .sourceVoice
         case .file: return .sourceFile
         }
-    }
-
-    private var titleText: String {
-        if let content = source.content, !content.isEmpty {
-            return String(content.prefix(80))
-        }
-        if let summary = source.summary, !summary.isEmpty {
-            return summary
-        }
-        if let title = source.windowTitle, !title.isEmpty {
-            return title
-        }
-        return source.type.rawValue.capitalized
     }
 
     @ViewBuilder

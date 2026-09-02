@@ -25,6 +25,11 @@ struct MemoriesView: View {
     @State private var wikiCount = 0
     @State private var wikiFilter: WikiFilter = .all
 
+    // Phase 8.3: 승격(위키에 정리) 선택 모드
+    @State private var isSelecting = false
+    @State private var selectedForPromotion: Set<String> = []
+    @State private var showPromotionSheet = false
+
     enum WikiFilter: String, CaseIterable, Identifiable {
         case all, unlinked, linked
         var id: String { rawValue }
@@ -92,6 +97,41 @@ struct MemoriesView: View {
         }
     }
 
+    /// 선택 가능한(=아직 위키 미주입) 현재 표시 중 메모 여부.
+    private func isSelectable(_ source: Source) -> Bool {
+        wikiMembership[source.id] == nil
+    }
+
+    /// 현재 필터/검색에 노출되는 승격 가능(미주입) 메모 id 목록. 전체 선택 대상.
+    private var selectableSourceIDs: [String] {
+        groupedSources.flatMap { $0.sources }.filter { isSelectable($0) }.map { $0.id }
+    }
+
+    /// 선택된 id에 해당하는 Source 객체(승격 시트 전달용).
+    private var selectedSources: [Source] {
+        sources.filter { selectedForPromotion.contains($0.id) }
+    }
+
+    private func toggleSelection(_ source: Source) {
+        if selectedForPromotion.contains(source.id) {
+            selectedForPromotion.remove(source.id)
+        } else {
+            selectedForPromotion.insert(source.id)
+        }
+    }
+
+    private func enterSelectionMode() {
+        // 미주입만 승격 대상이므로 자연스럽게 미주입 필터로 전환.
+        if wikiCount > 0 { wikiFilter = .unlinked }
+        selectedForPromotion = []
+        isSelecting = true
+    }
+
+    private func exitSelectionMode() {
+        isSelecting = false
+        selectedForPromotion = []
+    }
+
     /// 사이드바 검색어를 의미검색으로 승격. 디바운스 후 임베딩 유사도 상위 결과를 병합한다.
     private func runSemanticSearch(_ rawQuery: String) {
         searchDebounce?.cancel()
@@ -128,9 +168,25 @@ struct MemoriesView: View {
                 filterBar
                 Divider()
                 sourceList
+                if isSelecting {
+                    Divider()
+                    selectionActionBar
+                }
             }
             .navigationTitle(filter.label)
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    if isSelecting {
+                        Button("취소") { exitSelectionMode() }
+                    } else {
+                        Button {
+                            enterSelectionMode()
+                        } label: {
+                            Label("위키에 정리", systemImage: "checklist")
+                        }
+                        .help("메모를 선택해 위키로 정리")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     InspectorToggleButton()
                 }
@@ -155,7 +211,49 @@ struct MemoriesView: View {
             ) { result in
                 handleFileImport(result)
             }
+            .sheet(isPresented: $showPromotionSheet) {
+                WikiPromotionSheet(sources: selectedSources) { didPromote in
+                    showPromotionSheet = false
+                    if didPromote {
+                        exitSelectionMode()
+                        loadSources()
+                    }
+                }
+            }
         }
+    }
+
+    /// 선택 모드 하단 액션 바: 선택 개수 · 전체 선택/해제 · "위키에 정리".
+    private var selectionActionBar: some View {
+        let selectable = selectableSourceIDs
+        let allSelected = !selectable.isEmpty && selectable.allSatisfy { selectedForPromotion.contains($0) }
+        return HStack(spacing: 12) {
+            Button(allSelected ? "전체 해제" : "전체 선택") {
+                if allSelected {
+                    selectedForPromotion.subtract(selectable)
+                } else {
+                    selectedForPromotion.formUnion(selectable)
+                }
+            }
+            .buttonStyle(.link)
+            .disabled(selectable.isEmpty)
+
+            Text("\(selectedForPromotion.count)개 선택됨")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button {
+                showPromotionSheet = true
+            } label: {
+                Label("위키에 정리", systemImage: "sparkles")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedForPromotion.isEmpty)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     private var filterBar: some View {
@@ -309,9 +407,18 @@ struct MemoriesView: View {
                         ForEach(group.sources) { source in
                             MemoryRowView(source: source,
                                           isSelected: selectedSource?.id == source.id,
-                                          wikiTitles: wikiMembership[source.id] ?? [])
+                                          wikiTitles: wikiMembership[source.id] ?? [],
+                                          isSelecting: isSelecting,
+                                          isChecked: selectedForPromotion.contains(source.id),
+                                          isSelectable: isSelectable(source))
                                 .contentShape(Rectangle())
-                                .onTapGesture { selectedSource = source }
+                                .onTapGesture {
+                                    if isSelecting {
+                                        if isSelectable(source) { toggleSelection(source) }
+                                    } else {
+                                        selectedSource = source
+                                    }
+                                }
                                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
                                 .contextMenu {
                                     Button(role: .destructive) {
@@ -458,10 +565,20 @@ struct MemoryRowView: View {
     var isSelected: Bool = false
     /// 이 메모가 속한 위키 제목들(Phase 8.2 소속 위키 배지). 비어 있으면 미주입.
     var wikiTitles: [String] = []
+    // Phase 8.3: 승격 선택 모드
+    var isSelecting: Bool = false
+    var isChecked: Bool = false
+    var isSelectable: Bool = true
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
+            if isSelecting {
+                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isChecked ? Color.chatAccent : (isSelectable ? Color.secondary : Color.secondary.opacity(0.3)))
+                    .accessibilityLabel(isChecked ? "선택됨" : "선택 안 됨")
+            }
             leadingVisual
 
             VStack(alignment: .leading, spacing: 3) {
@@ -541,6 +658,7 @@ struct MemoryRowView: View {
                 .stroke(isSelected ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .opacity(isSelecting && !isSelectable ? 0.45 : 1)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) {
                 isHovered = hovering

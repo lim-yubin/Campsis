@@ -103,6 +103,7 @@ final class AppState {
     var processingQueueRef: (any Sendable)?
     var chatEngineRef: (any Sendable)?
     var searchEngineRef: (any Sendable)?
+    var wikiResynthesizerRef: (any Sendable)?
     var pendingConversations: Set<String> = []
     /// 검색 → 채팅 브리지: 새 채팅 입력창에 미리 채워넣을 질의.
     var pendingChatPrefill: String?
@@ -117,6 +118,7 @@ final class AppState {
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
     var searchEngine: VectorSearchEngine? { searchEngineRef as? VectorSearchEngine }
+    var wikiResynthesizer: WikiResynthesizer? { wikiResynthesizerRef as? WikiResynthesizer }
 
     init(sourceRepository: SourceRepository, embeddingRepository: EmbeddingRepository,
          embeddingService: EmbeddingService, conversationRepository: ConversationRepository,
@@ -250,6 +252,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: CaptureCoordinator?
     private var processingQueue: ProcessingQueue?
     private var searchEngine: VectorSearchEngine?
+    private var wikiResynthesizer: WikiResynthesizer?
     @MainActor let appState: AppState = {
         let db = try! AppDatabase.makeDefault()
         let repo = SourceRepository(dbQueue: db.dbQueue)
@@ -362,9 +365,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             sourceRepository: repo
         )
 
+        let resynthesizer = WikiResynthesizer(
+            sourceRepository: repo,
+            wikiRepository: appState.wikiRepository,
+            embeddingService: embedService
+        )
+        self.wikiResynthesizer = resynthesizer
+
         await MainActor.run {
             self.searchEngine = engine
             self.appState.searchEngineRef = engine
+            self.appState.wikiResynthesizerRef = resynthesizer
             self.configureChatEngine()
         }
 
@@ -397,10 +408,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 설정 변경 시 위키 재합성기(Luna) 백엔드를 갱신한다. 키 없으면 nil(재합성 보류).
+    @MainActor
+    private func updateWikiSynthesizer() {
+        guard let resynthesizer = wikiResynthesizer else { return }
+        let synth: WikiSynthesizer? = {
+            if let key = AICredentials.openAIKey, !key.isEmpty {
+                return LunaWikiSynthesizer(apiKey: key)
+            }
+            return nil
+        }()
+        Task { await resynthesizer.setSynthesizer(synth) }
+    }
+
     /// API 키에 따라 채팅 엔진(Luna)을 구성한다. 설정 변경 시 재호출된다 (D48: 클라우드 전용).
     @MainActor
     private func configureChatEngine() {
         updateMarkdownGenerator()
+        updateWikiSynthesizer()
 
         guard let searchEngine else { return }
 

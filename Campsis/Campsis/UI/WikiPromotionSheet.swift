@@ -305,16 +305,22 @@ struct WikiPromotionSheet: View {
         isExecuting = true
         let request = buildRequest()
         let promoter = WikiPromoter(wikiRepository: appState.wikiRepository)
+        let resynthesizer = appState.wikiResynthesizer
         Task {
-            let ok: Bool = await Task.detached {
-                do { _ = try promoter.execute(request); return true }
+            let result: WikiPromotionResult? = await Task.detached {
+                do { return try promoter.execute(request) }
                 catch {
                     NSLog("[Campsis] Wiki promotion failed: \(error)")
-                    return false
+                    return nil
                 }
             }.value
             isExecuting = false
-            onClose(ok)
+
+            // D.1 즉시 반영은 끝. D.2 종합 재합성은 백그라운드(비차단)로 진행.
+            if let result, let resynthesizer {
+                Task.detached { await resynthesizer.resynthesize(result) }
+            }
+            onClose(result != nil)
         }
     }
 

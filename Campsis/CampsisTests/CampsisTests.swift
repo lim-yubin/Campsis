@@ -499,6 +499,94 @@ struct WikiRepositoryTests {
     }
 }
 
+// MARK: - Mock WikiSynthesizer
+
+struct MockWikiSynthesizer: WikiSynthesizer {
+    var related: [String] = []
+    func synthesize(title: String, currentMarkdown: String?,
+                    newNotes: [WikiNoteInput]) async throws -> SynthesizedWiki {
+        let body = newNotes.map { "- \($0.title)" }.joined(separator: "\n")
+        return SynthesizedWiki(
+            markdown: "# \(title)\n\n종합.\n\n## 구성 메모\n\(body)",
+            summary: "\(title) 종합 요약",
+            relatedTopics: related)
+    }
+}
+
+@Suite struct WikiResynthesizerTests {
+    @Test func writesMarkdownAndCompletes() async throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let resynth = WikiResynthesizer(sourceRepository: sourceRepo,
+                                        wikiRepository: wikiRepo,
+                                        embeddingService: EmbeddingService())
+        await resynth.setSynthesizer(MockWikiSynthesizer())
+
+        var wiki = Wiki(title: "생산성", topicSlug: "생산성")
+        wiki.markdownStatus = .pending
+        try wikiRepo.save(&wiki)
+        var s = Source(type: .note, content: "딥워크 관련 메모")
+        try sourceRepo.save(&s)
+        try wikiRepo.addNote(s.id, toWiki: wiki.id)
+
+        await resynth.resynthesizeWiki(wikiId: wiki.id, addedSourceIds: [s.id])
+
+        let updated = try wikiRepo.fetch(id: wiki.id)
+        #expect(updated?.markdownStatus == .completed)
+        #expect(updated?.summary == "생산성 종합 요약")
+        let md = updated.flatMap { wikiRepo.readMarkdown($0) }
+        #expect(md?.contains("종합") == true)
+    }
+
+    @Test func relatedTopicsCreateBacklink() async throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let resynth = WikiResynthesizer(sourceRepository: sourceRepo,
+                                        wikiRepository: wikiRepo,
+                                        embeddingService: EmbeddingService())
+        await resynth.setSynthesizer(MockWikiSynthesizer(related: ["회의록"]))
+
+        var a = Wiki(title: "생산성", topicSlug: "생산성")
+        try wikiRepo.save(&a)
+        var b = Wiki(title: "회의록", topicSlug: "회의록")
+        try wikiRepo.save(&b)
+        var s = Source(type: .note, content: "메모")
+        try sourceRepo.save(&s)
+        try wikiRepo.addNote(s.id, toWiki: a.id)
+
+        await resynth.resynthesizeWiki(wikiId: a.id, addedSourceIds: [s.id])
+
+        #expect(try wikiRepo.relatedWikiIds(forWiki: a.id).contains(b.id))
+        #expect(try wikiRepo.relatedWikiIds(forWiki: b.id).contains(a.id))
+    }
+
+    @Test func skipsUserEditedWiki() async throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        let resynth = WikiResynthesizer(sourceRepository: sourceRepo,
+                                        wikiRepository: wikiRepo,
+                                        embeddingService: EmbeddingService())
+        await resynth.setSynthesizer(MockWikiSynthesizer())
+
+        var wiki = Wiki(title: "T", topicSlug: "t")
+        wiki.markdownEdited = true
+        wiki.markdownStatus = .completed
+        try wikiRepo.save(&wiki)
+        var s = Source(type: .note, content: "메모")
+        try sourceRepo.save(&s)
+
+        await resynth.resynthesizeWiki(wikiId: wiki.id, addedSourceIds: [s.id])
+
+        // 수동 편집 위키는 건드리지 않음(MD 없음 유지).
+        let updated = try wikiRepo.fetch(id: wiki.id)
+        #expect(updated?.markdownEdited == true)
+        #expect(updated.flatMap { wikiRepo.readMarkdown($0) } == nil)
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

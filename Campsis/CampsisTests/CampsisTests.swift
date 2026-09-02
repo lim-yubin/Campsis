@@ -384,6 +384,50 @@ struct WikiRepositoryTests {
     }
 }
 
+@Suite struct WikiRouterTests {
+    @Test func tHighScalesWithWikiCount() {
+        #expect(WikiRouter.tHigh(wikiCount: 0) == 0.65)
+        #expect(WikiRouter.tHigh(wikiCount: 2) == 0.65)
+        #expect(WikiRouter.tHigh(wikiCount: 3) == 0.60)
+        #expect(WikiRouter.tHigh(wikiCount: 4) == 0.60)
+        #expect(WikiRouter.tHigh(wikiCount: 5) == 0.55)
+        #expect(WikiRouter.tHigh(wikiCount: 100) == 0.55)
+    }
+
+    @Test func slugNormalizes() {
+        #expect(WikiRouter.slug("  Deep  Work ") == "deep-work")
+        #expect(WikiRouter.slug("생산성") == "생산성")
+    }
+
+    @Test func jaccardOverlap() {
+        #expect(WikiRouter.jaccard([], []) == 0)
+        #expect(WikiRouter.jaccard(["a", "b"], ["a", "b"]) == 1.0)
+        // 교집합 1(a), 합집합 3(a,b,c) → 1/3
+        let j = WikiRouter.jaccard(["a", "b"], ["a", "c"])
+        #expect(abs(j - (1.0 / 3.0)) < 1e-9)
+    }
+
+    /// 위키가 없으면 모든 메모가 후보 없음 → 새 위키 제안(대표 토픽).
+    @Test func coldStartProposesNewWiki() throws {
+        let db = try makeInMemoryDatabase()
+        let router = WikiRouter(
+            embeddingRepository: EmbeddingRepository(dbQueue: db.dbQueue),
+            wikiRepository: WikiRepository(dbQueue: db.dbQueue),
+            sourceRepository: SourceRepository(dbQueue: db.dbQueue))
+
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+        var s = Source(type: .note, content: "딥워크 정리")
+        s.topics = "[\"딥워크\",\"생산성\"]"
+        try sourceRepo.save(&s)
+
+        let suggestions = try router.route([s])
+        #expect(suggestions.count == 1)
+        #expect(suggestions[0].candidates.isEmpty)
+        #expect(suggestions[0].hasAutoMatch == false)
+        #expect(suggestions[0].representativeTopic == "딥워크")
+    }
+}
+
 private func makeInMemoryDatabase() throws -> AppDatabase {
     try AppDatabase(path: ":memory:")
 }

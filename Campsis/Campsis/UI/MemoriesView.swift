@@ -219,6 +219,7 @@ struct MemoriesView: View {
                         loadSources()
                     }
                 }
+                .environment(appState)
             }
         }
     }

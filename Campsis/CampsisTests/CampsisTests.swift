@@ -376,6 +376,37 @@ struct WikiRepositoryTests {
         #expect(try wikiRepo.wikiIds(forSource: s.id).isEmpty)
     }
 
+    @Test func mergeMovesNotesAndDeletesSource() throws {
+        let db = try makeInMemoryDatabase()
+        let wikiRepo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        var target = Wiki(title: "생산성", topicSlug: "productivity")
+        var source = Wiki(title: "업무효율", topicSlug: "work-efficiency")
+        try wikiRepo.save(&target)
+        try wikiRepo.save(&source)
+
+        var s1 = Source(type: .note, content: "1")
+        var s2 = Source(type: .note, content: "2")
+        var shared = Source(type: .note, content: "3")
+        try sourceRepo.save(&s1)
+        try sourceRepo.save(&s2)
+        try sourceRepo.save(&shared)
+
+        try wikiRepo.addNote(s1.id, toWiki: source.id)
+        try wikiRepo.addNote(shared.id, toWiki: source.id)
+        try wikiRepo.addNote(s2.id, toWiki: target.id)
+        try wikiRepo.addNote(shared.id, toWiki: target.id)   // target에도 이미 존재(중복)
+
+        let moved = try wikiRepo.merge(sourceWikiId: source.id, intoWikiId: target.id)
+
+        #expect(try wikiRepo.fetch(id: source.id) == nil)      // source 삭제
+        #expect(Set(moved) == [s1.id])                          // shared는 중복이라 이관 제외
+        #expect(try Set(wikiRepo.noteIds(forWiki: target.id)) == [s1.id, s2.id, shared.id])
+        #expect(try wikiRepo.fetch(id: target.id)?.memberCount == 3)
+        #expect(try wikiRepo.fetch(id: target.id)?.markdownStatus == .pending)
+    }
+
     @Test func wikiLinkRoundtrip() throws {
         let db = try makeInMemoryDatabase()
         let repo = WikiRepository(dbQueue: db.dbQueue)
@@ -531,6 +562,47 @@ struct MockWikiSynthesizer: WikiSynthesizer {
             markdown: "# \(title)\n\n종합.\n\n## 구성 메모\n\(body)",
             summary: "\(title) 종합 요약",
             relatedTopics: related)
+    }
+}
+
+@Suite struct WikiMaintenanceTests {
+    @Test func detectsSlugDuplicateAndOrphan() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        // 동일 slug 위키 2개 → 중복. 둘 다 메모 2개로 채워 고아 오탐 방지.
+        var a = Wiki(title: "생산성", topicSlug: "productivity")
+        var b = Wiki(title: "Productivity", topicSlug: "productivity")
+        try repo.save(&a)
+        try repo.save(&b)
+        for i in 0..<2 {
+            var sa = Source(type: .note, content: "a\(i)")
+            try sourceRepo.save(&sa)
+            try repo.addNote(sa.id, toWiki: a.id)
+            var sb = Source(type: .note, content: "b\(i)")
+            try sourceRepo.save(&sb)
+            try repo.addNote(sb.id, toWiki: b.id)
+        }
+
+        // 고아 위키(메모 0개).
+        var orphan = Wiki(title: "빈위키", topicSlug: "empty")
+        try repo.save(&orphan)
+
+        let suggestions = WikiMaintenance(wikiRepository: repo).scan()
+        #expect(suggestions.contains { $0.kind == .duplicate })
+        #expect(suggestions.contains { $0.kind == .orphan && $0.primaryWikiId == orphan.id })
+    }
+
+    @Test func dismissStoreCooldown() {
+        let id = "test-\(UUID().uuidString)"
+        #expect(LintDismissStore.isDismissed(id) == false)
+        LintDismissStore.dismiss(id)
+        #expect(LintDismissStore.isDismissed(id) == true)
+        // 쿨다운 경과 시점으로 dismiss하면 다시 노출.
+        let past = Date().addingTimeInterval(-(LintDismissStore.cooldown + 1))
+        LintDismissStore.dismiss(id, now: past)
+        #expect(LintDismissStore.isDismissed(id) == false)
     }
 }
 

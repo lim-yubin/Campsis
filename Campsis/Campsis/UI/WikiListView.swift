@@ -6,6 +6,8 @@ struct WikiListView: View {
     @State private var wikis: [Wiki] = []
     @State private var relatedCounts: [String: Int] = [:]
     @State private var path: [Wiki] = []
+    // Phase 8.11: 위키 유지보수(Lint) 제안 카드
+    @State private var suggestions: [LintSuggestion] = []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -53,15 +55,94 @@ struct WikiListView: View {
 
     private var list: some View {
         List {
-            ForEach(wikis) { wiki in
-                NavigationLink(value: wiki) {
-                    WikiRowView(wiki: wiki, relatedCount: relatedCounts[wiki.id] ?? 0)
+            if !suggestions.isEmpty {
+                Section("정리 제안") {
+                    ForEach(suggestions) { suggestion in
+                        suggestionCard(suggestion)
+                            .listRowInsets(EdgeInsets(top: 3, leading: 8, bottom: 3, trailing: 8))
+                            .listRowSeparator(.hidden)
+                    }
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 3, leading: 8, bottom: 3, trailing: 8))
+            }
+            Section {
+                ForEach(wikis) { wiki in
+                    NavigationLink(value: wiki) {
+                        WikiRowView(wiki: wiki, relatedCount: relatedCounts[wiki.id] ?? 0)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 8, bottom: 3, trailing: 8))
+                }
             }
         }
         .listStyle(.sidebar)
+    }
+
+    // MARK: - Lint 제안 카드 (8.11)
+
+    private func suggestionCard(_ suggestion: LintSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: suggestion.kind == .duplicate ? "arrow.triangle.merge" : "leaf")
+                    .foregroundStyle(.orange)
+                Text(suggestion.title)
+                    .font(.subheadline.weight(.semibold))
+            }
+            Text(suggestion.message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                switch suggestion.kind {
+                case .duplicate:
+                    Button("합치기") { applyMerge(suggestion) }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                case .orphan:
+                    Button("삭제", role: .destructive) { deleteOrphan(suggestion) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                Button("무시") { dismiss(suggestion) }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func applyMerge(_ suggestion: LintSuggestion) {
+        guard let secondary = suggestion.secondaryWikiId else { return }
+        let target = suggestion.primaryWikiId
+        do {
+            let moved = try appState.wikiRepository.merge(sourceWikiId: secondary, intoWikiId: target)
+            load()
+            // 병합 내용을 흡수하도록 target 재합성(사람 편집 위키는 엔진이 스킵).
+            if let resynth = appState.wikiResynthesizer {
+                Task { await resynth.resynthesizeWiki(wikiId: target, addedSourceIds: moved) }
+            }
+            NotificationCenter.default.post(name: .wikiUpdated, object: nil)
+        } catch {
+            NSLog("[Campsis] Wiki merge failed: \(error)")
+        }
+    }
+
+    private func deleteOrphan(_ suggestion: LintSuggestion) {
+        guard let wiki = try? appState.wikiRepository.fetch(id: suggestion.primaryWikiId) else { return }
+        do {
+            try appState.wikiRepository.delete(wiki)
+            load()
+            NotificationCenter.default.post(name: .wikiUpdated, object: nil)
+        } catch {
+            NSLog("[Campsis] Orphan wiki delete failed: \(error)")
+        }
+    }
+
+    private func dismiss(_ suggestion: LintSuggestion) {
+        LintDismissStore.dismiss(suggestion.id)
+        withAnimation { suggestions.removeAll { $0.id == suggestion.id } }
     }
 
     private func load() {
@@ -72,9 +153,16 @@ struct WikiListView: View {
                 counts[wiki.id] = (try? appState.wikiRepository.relatedWikiIds(forWiki: wiki.id).count) ?? 0
             }
             relatedCounts = counts
+            refreshSuggestions()
         } catch {
             NSLog("[Campsis] Failed to load wikis: \(error)")
         }
+    }
+
+    /// 위키 메뉴 진입/`.wikiUpdated` 시 로컬 Lint를 돌려 dismiss되지 않은 제안만 노출(OW5 ①②).
+    private func refreshSuggestions() {
+        let scanned = WikiMaintenance(wikiRepository: appState.wikiRepository).scan()
+        suggestions = scanned.filter { !LintDismissStore.isDismissed($0.id) }
     }
 }
 

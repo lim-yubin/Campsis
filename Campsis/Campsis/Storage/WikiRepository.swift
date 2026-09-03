@@ -203,6 +203,71 @@ nonisolated struct WikiRepository: Sendable {
         }
     }
 
+    // MARK: - 위키 병합 (Lint 중복 제안, 8.11)
+
+    /// `sourceWikiId`의 구성 메모·백링크를 `targetWikiId`로 이관하고 source를 삭제한다.
+    /// target은 병합 내용을 흡수하도록 재합성 대기(`pending`)로 표시하되, 사람이 직접
+    /// 편집한 위키(`markdownEdited`)는 상태를 유지한다. 이관된(=target에 새로 추가된) 메모 id를 반환.
+    @discardableResult
+    func merge(sourceWikiId: String, intoWikiId targetWikiId: String) throws -> [String] {
+        guard sourceWikiId != targetWikiId else { return [] }
+        let sourceWiki = try fetch(id: sourceWikiId)
+
+        let movedIds: [String] = try dbQueue.write { db in
+            var moved: [String] = []
+
+            // 1. 메모 링크 이관: target에 없는 것만 옮긴다(원본 링크는 source 삭제 시 cascade).
+            let sourceLinks = try NoteWikiLink
+                .filter(NoteWikiLink.Columns.wikiId == sourceWikiId)
+                .fetchAll(db)
+            for link in sourceLinks {
+                let exists = try NoteWikiLink
+                    .filter(NoteWikiLink.Columns.wikiId == targetWikiId)
+                    .filter(NoteWikiLink.Columns.sourceId == link.sourceId)
+                    .fetchCount(db) > 0
+                if !exists {
+                    var moved0 = link
+                    moved0.wikiId = targetWikiId
+                    try moved0.insert(db)
+                    moved.append(link.sourceId)
+                }
+            }
+
+            // 2. 위키 백링크 이관: source가 등장하는 링크를 target으로 치환(자기참조 제거).
+            let wikiLinks = try WikiWikiLink
+                .filter(WikiWikiLink.Columns.fromWikiId == sourceWikiId
+                        || WikiWikiLink.Columns.toWikiId == sourceWikiId)
+                .fetchAll(db)
+            for link in wikiLinks {
+                let from = link.fromWikiId == sourceWikiId ? targetWikiId : link.fromWikiId
+                let to = link.toWikiId == sourceWikiId ? targetWikiId : link.toWikiId
+                if from != to {
+                    try WikiWikiLink(fromWikiId: from, toWikiId: to, weight: link.weight).save(db)
+                }
+            }
+
+            // 3. source 삭제 (note_wiki_link/wiki_wiki_link/wiki_embedding FK cascade).
+            if let source = try Wiki.fetchOne(db, key: sourceWikiId) {
+                try source.delete(db)
+            }
+
+            // 4. target member_count 갱신 + 재합성 대기(사람 편집 위키는 보호).
+            if var target = try Wiki.fetchOne(db, key: targetWikiId) {
+                target.memberCount = try NoteWikiLink
+                    .filter(NoteWikiLink.Columns.wikiId == targetWikiId)
+                    .fetchCount(db)
+                if !target.markdownEdited { target.markdownStatus = .pending }
+                target.updatedAt = Date()
+                try target.update(db)
+            }
+            return moved
+        }
+
+        // DB cascade는 파일을 지우지 않으므로 source MD/스냅샷을 수동 정리.
+        if let sourceWiki { removeAssociatedFiles(sourceWiki) }
+        return movedIds
+    }
+
     // MARK: - 위키 ↔ 위키 링크
 
     func addWikiLink(from fromWikiId: String, to toWikiId: String, weight: Double? = nil) throws {

@@ -190,6 +190,12 @@ nonisolated struct WikiRepository: Sendable {
         }
     }
 
+    /// 지정한 위키들의 `member_count`를 실제 링크 수로 재계산한다.
+    /// 메모 삭제 등 FK cascade로 링크만 사라진 경우 비정규화 캐시 정합성을 복구한다.
+    func refreshMemberCounts(forWikis ids: [String]) throws {
+        for id in Set(ids) { try refreshMemberCount(wikiId: id) }
+    }
+
     private func refreshMemberCount(wikiId: String) throws {
         try dbQueue.write { db in
             let count = try NoteWikiLink

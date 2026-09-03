@@ -594,6 +594,38 @@ struct MockWikiSynthesizer: WikiSynthesizer {
         #expect(suggestions.contains { $0.kind == .orphan && $0.primaryWikiId == orphan.id })
     }
 
+    @Test func memberCountRefreshAndOrphanRule() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+        let sourceRepo = SourceRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "T", topicSlug: "t-\(UUID().uuidString)")
+        try repo.save(&wiki)
+        var s1 = Source(type: .note, content: "1")
+        var s2 = Source(type: .note, content: "2")
+        try sourceRepo.save(&s1)
+        try sourceRepo.save(&s2)
+        try repo.addNote(s1.id, toWiki: wiki.id)
+        try repo.addNote(s2.id, toWiki: wiki.id)
+        #expect(try repo.fetch(id: wiki.id)?.memberCount == 2)
+
+        // 메모 삭제 → 링크는 cascade로 사라지지만 member_count 캐시는 stale → refresh로 복구.
+        try sourceRepo.delete(s1)
+        try repo.refreshMemberCounts(forWikis: [wiki.id])
+        #expect(try repo.fetch(id: wiki.id)?.memberCount == 1)
+
+        // 1-member 위키는 고아 제안 대상이 아니다(§11 콜드스타트 존중).
+        let after1 = WikiMaintenance(wikiRepository: repo).scan()
+        #expect(!after1.contains { $0.kind == .orphan && $0.primaryWikiId == wiki.id })
+
+        // 마지막 메모까지 삭제 → 0-member → 고아 제안 노출.
+        try sourceRepo.delete(s2)
+        try repo.refreshMemberCounts(forWikis: [wiki.id])
+        #expect(try repo.fetch(id: wiki.id)?.memberCount == 0)
+        let after0 = WikiMaintenance(wikiRepository: repo).scan()
+        #expect(after0.contains { $0.kind == .orphan && $0.primaryWikiId == wiki.id })
+    }
+
     @Test func dismissStoreCooldown() {
         let id = "test-\(UUID().uuidString)"
         #expect(LintDismissStore.isDismissed(id) == false)

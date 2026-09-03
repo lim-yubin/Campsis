@@ -294,7 +294,9 @@ struct WikiPromotionSheet: View {
                 for sid in sourceIds { if let v = scores[sid]?[wikiId] { s[sid] = v } }
                 return .init(existingWikiId: wikiId, newTitle: nil, sourceIds: sourceIds, scores: s)
             } else {
-                let title = newTitles[key] ?? String(key.dropFirst(Self.newPrefix.count))
+                let slug = String(key.dropFirst(Self.newPrefix.count))
+                let edited = (newTitles[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = edited.isEmpty ? slug : edited   // 빈 제목이면 토픽 슬러그로 폴백
                 return .init(existingWikiId: nil, newTitle: title, sourceIds: sourceIds, scores: [:])
             }
         }

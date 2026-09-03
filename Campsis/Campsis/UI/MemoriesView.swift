@@ -553,8 +553,16 @@ struct MemoriesView: View {
 
     private func deleteSource(_ source: Source) {
         do {
+            // 삭제 전 소속 위키를 확보(삭제 시 note_wiki_link는 cascade로 사라짐).
+            let affectedWikis = (try? appState.wikiRepository.wikiIds(forSource: source.id)) ?? []
             try appState.sourceRepository.delete(source)
             sources.removeAll { $0.id == source.id }
+            // 위키 member_count 캐시 정합성 복구 + 위키 뷰 새로고침.
+            if !affectedWikis.isEmpty {
+                try? appState.wikiRepository.refreshMemberCounts(forWikis: affectedWikis)
+                NotificationCenter.default.post(name: .wikiUpdated, object: nil)
+            }
+            loadWikiMembership()
         } catch {
             NSLog("[Campsis] Failed to delete source: \(error)")
         }

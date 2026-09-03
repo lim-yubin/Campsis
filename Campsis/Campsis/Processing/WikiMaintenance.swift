@@ -80,19 +80,19 @@ nonisolated struct WikiMaintenance: Sendable {
         return out
     }
 
-    // MARK: - 고아/빈약 위키
+    // MARK: - 고아 위키
 
+    /// 구성 메모가 **0개**인 위키만 제안한다. 메모 1개 위키는 콜드스타트에서
+    /// 사용자가 의도적으로 만들 수 있어(§11) 잔소리를 피한다.
     private func orphanSuggestions(_ wikis: [Wiki]) -> [LintSuggestion] {
-        wikis.filter { $0.memberCount <= 1 }.map { wiki in
+        wikis.filter { $0.memberCount == 0 }.map { wiki in
             LintSuggestion(
                 id: "orphan:\(wiki.id)",
                 kind: .orphan,
                 primaryWikiId: wiki.id,
                 secondaryWikiId: nil,
-                title: "빈약한 위키",
-                message: wiki.memberCount == 0
-                    ? "‘\(wiki.title)’에 구성 메모가 없어요. 정리하거나 삭제할까요?"
-                    : "‘\(wiki.title)’은(는) 구성 메모가 1개예요. 더 채우거나 삭제할까요?")
+                title: "빈 위키",
+                message: "‘\(wiki.title)’에 구성 메모가 없어요. 정리하거나 삭제할까요?")
         }
     }
 

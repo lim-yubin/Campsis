@@ -88,7 +88,7 @@ struct MainContentView: View {
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340) // 초기 폭 힌트(실제 강제는 SidebarWidthLimits)
+                .navigationSplitViewColumnWidth(240) // 고정 폭(범위 아님). 실제 강제는 SidebarWidthLimits(240/240)
                 // 시스템 토글을 숨기고 [작성][토글]을 직접 배치해 순서·간격을 제어한다.
                 .toolbar(removing: .sidebarToggle)
                 .toolbar {

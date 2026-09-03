@@ -167,11 +167,14 @@ struct MainContentView: View {
             searchField
 
             List(selection: $selection) {
-                Section("라이브러리") {
+                Section("기억") {
                     ForEach(LibraryItem.allCases) { item in
                         Label(item.label, systemImage: item.systemImage)
                             .tag(SidebarSection.library(item))
                     }
+                }
+
+                Section("위키") {
                     Label("나의 위키", systemImage: "books.vertical")
                         .tag(SidebarSection.wiki)
                 }

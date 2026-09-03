@@ -28,6 +28,9 @@ struct MemoriesView: View {
     @State private var wikiCount = 0
     @State private var wikiFilter: WikiFilter = .all
 
+    // 콘텐츠 유형 필터(사이드바에서 콘텐츠 필터바로 이동).
+    @State private var typeFilter: MemoryTypeFilter = .all
+
     // Phase 8.3: 승격(위키에 정리) 선택 모드
     @State private var isSelecting = false
     @State private var selectedForPromotion: Set<String> = []
@@ -214,6 +217,9 @@ struct MemoriesView: View {
             .onChange(of: searchText) { _, newValue in
                 runSemanticSearch(newValue)
             }
+            .onChange(of: typeFilter) { _, _ in
+                loadSources()
+            }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [.pdf, .plainText, .png, .jpeg],
@@ -269,6 +275,21 @@ struct MemoriesView: View {
 
     private var filterBar: some View {
         HStack(spacing: 10) {
+            Menu {
+                ForEach(MemoryTypeFilter.allCases) { t in
+                    Button {
+                        typeFilter = t
+                    } label: {
+                        Label(t.label, systemImage: t.systemImage)
+                    }
+                }
+            } label: {
+                Label(typeFilter.label, systemImage: typeFilter.systemImage)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("표시할 기억 유형")
+
             if wikiCount > 0 {
                 Picker("위키 주입", selection: $wikiFilter) {
                     ForEach(WikiFilter.allCases) { f in
@@ -391,7 +412,7 @@ struct MemoriesView: View {
         } description: {
             Text(emptyDescription)
         } actions: {
-            if filter == .all || filter == .today {
+            if typeFilter == .all {
                 Button {
                     NotificationCenter.default.post(name: .triggerQuickMemory, object: nil)
                 } label: {
@@ -404,19 +425,15 @@ struct MemoriesView: View {
     }
 
     private var emptyTitle: String {
-        switch filter {
-        case .all, .today: return "아직 저장된 기억이 없어요"
-        default: return "아직 \(filter.label) 기억이 없어요"
-        }
+        if typeFilter == .all { return "아직 저장된 기억이 없어요" }
+        return "아직 \(typeFilter.label) 기억이 없어요"
     }
 
     private var emptyDescription: String {
-        switch filter {
-        case .all, .today:
+        if typeFilter == .all {
             return "화면 어디서나 ⌥Space로 텍스트·스크린샷을,\n⌥⇧Space로 빠른 메모를 저장할 수 있어요."
-        default:
-            return "새로운 기억이 저장되면 여기에 표시됩니다."
         }
+        return "다른 유형의 기억은 상단 유형 필터에서 확인할 수 있어요."
     }
 
     /// 필터·검색·날짜로 결과가 비었을 때의 설명 문구.
@@ -426,6 +443,9 @@ struct MemoriesView: View {
         }
         if selectedDate != nil {
             return "선택한 날짜에 저장된 기억이 없습니다."
+        }
+        if typeFilter != .all {
+            return "‘\(typeFilter.label)’ 유형에 해당하는 기억이 없어요."
         }
         if wikiFilter != .all {
             return "이 조건에 맞는 기억이 없어요."
@@ -622,20 +642,12 @@ struct MemoriesView: View {
     }
 
     private func loadSources() {
+        // 스코프(전체/오늘)는 selectedDate로 걸러지므로 여기선 유형만 반영한다.
         do {
-            switch filter {
-            case .all, .today:
+            if let type = typeFilter.sourceType {
+                sources = try appState.sourceRepository.fetchAll(type: type)
+            } else {
                 sources = try appState.sourceRepository.fetchAll()
-            case .text:
-                sources = try appState.sourceRepository.fetchAll(type: .selectedText)
-            case .screenshot:
-                sources = try appState.sourceRepository.fetchAll(type: .screenshot)
-            case .note:
-                sources = try appState.sourceRepository.fetchAll(type: .note)
-            case .voice:
-                sources = try appState.sourceRepository.fetchAll(type: .voice)
-            case .file:
-                sources = try appState.sourceRepository.fetchAll(type: .file)
             }
         } catch {
             NSLog("[Campsis] Failed to load sources: \(error)")
@@ -655,8 +667,9 @@ struct MemoriesView: View {
     }
 }
 
+/// 사이드바 "기억" 섹션의 스코프 필터. 타입 필터는 MemoryTypeFilter로 분리됨.
 enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
-    case all, today, text, screenshot, note, voice, file
+    case all, today
 
     var id: String { rawValue }
 
@@ -664,6 +677,38 @@ enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .all: return "전체 기억"
         case .today: return "오늘"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .all: return "square.stack"
+        case .today: return "clock"
+        }
+    }
+}
+
+/// 메모함 콘텐츠 필터바의 "유형" 필터. SourceType으로 매핑되며 all이면 전체.
+enum MemoryTypeFilter: String, CaseIterable, Identifiable, Hashable {
+    case all, text, screenshot, note, voice, file
+
+    var id: String { rawValue }
+
+    /// 대응하는 SourceType. all이면 nil(전체).
+    var sourceType: SourceType? {
+        switch self {
+        case .all: return nil
+        case .text: return .selectedText
+        case .screenshot: return .screenshot
+        case .note: return .note
+        case .voice: return .voice
+        case .file: return .file
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .all: return "전체 유형"
         case .text: return "텍스트"
         case .screenshot: return "스크린샷"
         case .note: return "메모"
@@ -674,8 +719,7 @@ enum LibraryItem: String, CaseIterable, Identifiable, Hashable {
 
     var systemImage: String {
         switch self {
-        case .all: return "square.stack"
-        case .today: return "clock"
+        case .all: return "square.grid.2x2"
         case .text: return "text.quote"
         case .screenshot: return "camera"
         case .note: return "note.text"

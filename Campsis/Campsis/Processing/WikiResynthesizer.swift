@@ -24,6 +24,14 @@ actor WikiResynthesizer {
         self.synthesizer = synthesizer
     }
 
+    /// 사용자가 위키를 직접 편집한 뒤(8.10) 검색 반영을 위해 페이지만 재임베딩한다.
+    /// LLM 재합성 없이 현재 저장된 MD로만 임베딩을 갱신(비용 없음).
+    func reembedEditedWiki(wikiId: String) async {
+        guard let wiki = try? wikiRepository.fetch(id: wikiId),
+              let markdown = wikiRepository.readMarkdown(wiki), !markdown.isEmpty else { return }
+        await embedWiki(wiki, summary: wiki.summary, markdown: markdown)
+    }
+
     /// 승격 배치의 모든 대상 위키를 순차 재합성(비용/레이트 통제).
     func resynthesize(_ result: WikiPromotionResult) async {
         for (wikiId, added) in result.addedByWiki {

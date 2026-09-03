@@ -301,6 +301,27 @@ struct WikiRepositoryTests {
         #expect(try repo.fetch(topicSlug: "productivity")?.id == wiki.id)
     }
 
+    @Test func editMarkdownFlagsEditedAndSnapshots() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+
+        var wiki = Wiki(title: "편집", topicSlug: "edit-\(UUID().uuidString)")
+        try repo.save(&wiki)
+
+        // 최초 자동 생성물(편집 아님) — 이전 내용이 없어 스냅샷도 없음.
+        try repo.writeMarkdown("# 편집\n\n초안", for: &wiki, reason: .resynthesis)
+        #expect(wiki.markdownEdited == false)
+        #expect(try repo.revisions(forWiki: wiki.id).isEmpty)
+
+        // 사용자 직접 편집 — 이전 내용 스냅샷 + markedEdited 표시.
+        try repo.writeMarkdown("# 편집\n\n사용자 수정본", for: &wiki, reason: .edit, markedEdited: true)
+        #expect(wiki.markdownEdited == true)
+        #expect(repo.readMarkdown(wiki) == "# 편집\n\n사용자 수정본")
+        let revs = try repo.revisions(forWiki: wiki.id)
+        #expect(revs.count == 1)
+        #expect(revs.first?.reason == .edit)
+    }
+
     @Test func addAndRemoveNoteUpdatesMemberCount() throws {
         let db = try makeInMemoryDatabase()
         let wikiRepo = WikiRepository(dbQueue: db.dbQueue)

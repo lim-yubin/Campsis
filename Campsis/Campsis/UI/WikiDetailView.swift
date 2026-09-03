@@ -11,6 +11,11 @@ struct WikiDetailView: View {
     @State private var related: [Wiki] = []
     @State private var toast: String?
 
+    // Phase 8.10: 사람 편집 보호 — 위키 수동 편집
+    @State private var isEditing = false
+    @State private var draft = ""
+    @State private var saveError: String?
+
     init(wiki: Wiki) {
         self.wiki = wiki
         _current = State(initialValue: wiki)
@@ -30,26 +35,38 @@ struct WikiDetailView: View {
         }
         .navigationTitle(current.title)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                if markdown != nil {
-                    Menu {
-                        Button("마크다운 복사") {
-                            MarkdownClipboard.copyMarkdown(markdownForCopy)
-                            showToast("마크다운 복사됨")
-                        }
-                        Button("일반 텍스트 복사") {
-                            MarkdownClipboard.copyPlain(markdownForCopy)
-                            showToast("복사됨")
-                        }
+            if !isEditing {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        startEditing()
                     } label: {
-                        Label("복사", systemImage: "doc.on.doc")
+                        Label("편집", systemImage: "square.and.pencil")
+                    }
+                    .help("위키 페이지를 직접 편집")
+                }
+                if markdown != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("마크다운 복사") {
+                                MarkdownClipboard.copyMarkdown(markdownForCopy)
+                                showToast("마크다운 복사됨")
+                            }
+                            Button("일반 텍스트 복사") {
+                                MarkdownClipboard.copyPlain(markdownForCopy)
+                                showToast("복사됨")
+                            }
+                        } label: {
+                            Label("복사", systemImage: "doc.on.doc")
+                        }
                     }
                 }
             }
         }
         .overlay(alignment: .bottom) { toastView }
         .onAppear(perform: load)
-        .onReceive(NotificationCenter.default.publisher(for: .wikiUpdated)) { _ in load() }
+        .onReceive(NotificationCenter.default.publisher(for: .wikiUpdated)) { _ in
+            if !isEditing { load() }   // 편집 중에는 초안을 덮어쓰지 않음.
+        }
     }
 
     // MARK: - Sections
@@ -78,12 +95,36 @@ struct WikiDetailView: View {
             Text("메모 \(current.memberCount)개로 만들어졌어요 · \(current.updatedAt.formatted(.dateTime.year().month().day()))")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            if current.markdownEdited && !isEditing {
+                editedBanner
+            }
         }
+    }
+
+    /// 사용자가 직접 편집한 위키임을 알리고, 원하면 자동 정리를 다시 켤 수 있게 한다(8.10).
+    private var editedBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hand.raised.fill")
+                .foregroundStyle(.orange)
+            Text("직접 편집한 위키예요. 새 메모를 정리해도 이 내용을 자동으로 덮어쓰지 않아요.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button("자동 정리 다시 켜기") { reenableAutoResynthesis() }
+                .font(.caption)
+                .buttonStyle(.link)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder
     private var pageSection: some View {
-        if let markdown, !markdown.isEmpty {
+        if isEditing {
+            editor
+        } else if let markdown, !markdown.isEmpty {
             MarkdownTextView(text: strippedMarkdown(markdown))
         } else if current.markdownStatus == .pending || current.markdownStatus == .processing {
             HStack(spacing: 8) {
@@ -93,8 +134,47 @@ struct WikiDetailView: View {
             }
             .padding(.vertical, 8)
         } else {
-            Text("아직 종합 내용이 없습니다.")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("아직 종합 내용이 없습니다.")
+                    .foregroundStyle(.secondary)
+                Button {
+                    startEditing()
+                } label: {
+                    Label("직접 작성", systemImage: "square.and.pencil")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// 위키 마크다운 편집기(8.10). 저장 시 `markdownEdited=true`로 표시되어 자동 재합성이 보호된다.
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextEditor(text: $draft)
+                .font(.body.monospaced())
+                .frame(minHeight: 320)
+                .padding(8)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
+            if let saveError {
+                Label(saveError, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Label("저장하면 '직접 편집' 상태가 되어, 이후 새 메모를 정리해도 자동으로 덮어쓰지 않아요.",
+                      systemImage: "hand.raised")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("취소") { isEditing = false }
+                Button("저장") { saveEdit() }
+                    .keyboardShortcut("s", modifiers: .command)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         }
     }
 
@@ -191,6 +271,48 @@ struct WikiDetailView: View {
             related = relatedIds.compactMap { try? appState.wikiRepository.fetch(id: $0) }
         } catch {
             NSLog("[Campsis] Failed to load wiki detail: \(error)")
+        }
+    }
+
+    private func startEditing() {
+        // 저장된 원본 MD 전체(H1 포함)를 편집 대상으로.
+        draft = markdown ?? "# \(current.title)\n\n"
+        saveError = nil
+        isEditing = true
+    }
+
+    private func saveEdit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = current
+        do {
+            try appState.wikiRepository.writeMarkdown(trimmed, for: &updated,
+                                                      reason: .edit, markedEdited: true)
+            current = updated
+            markdown = trimmed
+            isEditing = false
+            saveError = nil
+            showToast("저장됨 · 직접 편집으로 표시")
+            // 편집 내용이 검색·채팅에 반영되도록 위키 페이지만 재임베딩(LLM 비용 없음).
+            let id = current.id
+            if let resynth = appState.wikiResynthesizer {
+                Task { await resynth.reembedEditedWiki(wikiId: id) }
+            }
+        } catch {
+            saveError = error.localizedDescription
+            NSLog("[Campsis] Wiki markdown save failed for \(current.id): \(error)")
+        }
+    }
+
+    /// 직접 편집 상태를 해제해, 다음 정리(승격) 시 자동 재합성을 다시 허용한다(8.10).
+    private func reenableAutoResynthesis() {
+        var updated = current
+        updated.markdownEdited = false
+        do {
+            try appState.wikiRepository.save(&updated)
+            current = updated
+            showToast("자동 정리를 다시 켰어요")
+        } catch {
+            NSLog("[Campsis] Failed to re-enable resynthesis for \(current.id): \(error)")
         }
     }
 

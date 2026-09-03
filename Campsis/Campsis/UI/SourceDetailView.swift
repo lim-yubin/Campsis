@@ -523,6 +523,9 @@ struct SourceDetailView: View {
                             .onTapGesture { NSWorkspace.shared.open(url) }  // 클릭 시 원본 크기로 열기
                             .help("클릭하면 원본 크기로 열려요")
                     }
+                    // GroupBox는 macOS에서 내용 크기에 맞춰 수축하므로, 박스 자체에
+                    // 폭을 강제해야 안의 이미지가 가용 폭을 채운다.
+                    .frame(maxWidth: .infinity)
                 }
             }
             if let ocrText = source.ocrText, !ocrText.isEmpty {

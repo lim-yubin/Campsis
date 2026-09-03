@@ -20,6 +20,9 @@ struct MemoriesView: View {
     @State private var semanticMatchIDs: Set<String> = []
     @State private var searchDebounce: Task<Void, Never>?
 
+    // Phase 8.9: 사이드바 검색 결과에 위키 페이지 포함(상단 노출 → 위키 상세로 이동)
+    @State private var wikiMatches: [WikiSearchResult] = []
+
     // Phase 8.2: 소속 위키 배지 맵(소스 id → 위키 제목들) + 위키 주입 필터
     @State private var wikiMembership: [String: [String]] = [:]
     @State private var wikiCount = 0
@@ -132,22 +135,29 @@ struct MemoriesView: View {
         selectedForPromotion = []
     }
 
-    /// 사이드바 검색어를 의미검색으로 승격. 디바운스 후 임베딩 유사도 상위 결과를 병합한다.
+    /// 사이드바 검색어를 의미검색으로 승격. 디바운스 후 메모(임베딩 유사도)와
+    /// 위키 페이지(Phase 8.9)를 함께 조회해 결과를 병합한다.
     private func runSemanticSearch(_ rawQuery: String) {
         searchDebounce?.cancel()
         let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2, let engine = appState.searchEngine else {
             semanticMatchIDs = []
+            wikiMatches = []
             return
         }
         searchDebounce = Task {
             try? await Task.sleep(for: .milliseconds(350))
             if Task.isCancelled { return }
             do {
-                let results = try await engine.search(query: trimmed, topN: 30, minScore: 0.25)
+                async let memoResults = engine.search(query: trimmed, topN: 30, minScore: 0.25)
+                async let wikiResults = engine.searchWikis(query: trimmed, topN: 5, minScore: 0.3)
+                let (memos, wikis) = try await (memoResults, wikiResults)
                 if Task.isCancelled { return }
-                let ids = Set(results.map { $0.source.id })
-                await MainActor.run { semanticMatchIDs = ids }
+                let ids = Set(memos.map { $0.source.id })
+                await MainActor.run {
+                    semanticMatchIDs = ids
+                    wikiMatches = wikis
+                }
             } catch {
                 NSLog("[Campsis] Semantic search failed: \(error)")
             }
@@ -377,8 +387,9 @@ struct MemoriesView: View {
     @ViewBuilder
     private var sourceList: some View {
         let groups = groupedSources
+        let searching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        if groups.isEmpty && (selectedDate != nil || !searchText.isEmpty) {
+        if groups.isEmpty && wikiMatches.isEmpty && (selectedDate != nil || searching) {
             ContentUnavailableView(
                 "기억 없음",
                 systemImage: "magnifyingglass",
@@ -387,10 +398,13 @@ struct MemoriesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
-                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if searching {
                     searchChatBridge
                         .listRowInsets(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
                         .listRowSeparator(.hidden)
+                }
+                if searching && !wikiMatches.isEmpty {
+                    wikiMatchesBlock
                 }
                 ForEach(groups, id: \.key) { group in
                     DisclosureGroup(
@@ -461,6 +475,55 @@ struct MemoriesView: View {
                 Text("삭제된 기억은 복구할 수 없습니다.")
             }
         }
+    }
+
+    /// Phase 8.9: 검색 결과 상단의 위키 매칭 블록(위키 우선 노출). 탭 → 나의 위키 상세로 이동.
+    @ViewBuilder
+    private var wikiMatchesBlock: some View {
+        Text("위키")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 2, trailing: 8))
+            .listRowSeparator(.hidden)
+        ForEach(wikiMatches, id: \.wiki.id) { result in
+            wikiSearchRow(result.wiki)
+                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                .listRowSeparator(.hidden)
+        }
+    }
+
+    private func wikiSearchRow(_ wiki: Wiki) -> some View {
+        Button {
+            appState.pendingWikiId = wiki.id
+            NotificationCenter.default.post(name: .openWiki, object: nil)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "book.closed.fill")
+                    .font(.callout)
+                    .foregroundStyle(Color.chatAccent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(wiki.title)
+                        .font(.body)
+                        .lineLimit(1)
+                    if let summary = wiki.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                Text("메모 \(wiki.memberCount)개")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.chatAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// 검색 결과 상단의 "이 검색어로 채팅하기" 브리지 버튼.

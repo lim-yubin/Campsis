@@ -117,7 +117,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 shortcutRow("⌥ Space", "현재 컨텍스트 기억")
                 shortcutRow("⌥ ⇧ Space", "빠른 메모")
-                shortcutRow("⌥ ⇧ M", "메모리 창 열기")
+                shortcutRow("⌥ ⇧ M", "기억 창 열기")
             }
             .padding(16)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))

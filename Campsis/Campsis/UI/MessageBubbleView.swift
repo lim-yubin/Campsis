@@ -136,7 +136,8 @@ struct MessageBubbleView: View {
         .help(ref.title)
     }
 
-    /// 출처 클릭: 메모는 인스펙터 미리보기, 위키는 나의 위키에서 열기.
+    /// 출처 클릭: 메모·위키 모두 대화를 떠나지 않고 오른쪽 인스펙터에서 미리본다.
+    /// (위키는 미리보기 안의 "나의 위키에서 열기"로 전체 화면 이동 가능.)
     private func open(_ ref: ChatReference) {
         switch ref.kind {
         case .memo:
@@ -145,8 +146,10 @@ struct MessageBubbleView: View {
             appState.inspectorMode = .source
             appState.showInspector = true
         case .wiki:
-            appState.pendingWikiId = ref.id
-            NotificationCenter.default.post(name: .openWiki, object: nil)
+            guard let wiki = try? appState.wikiRepository.fetch(id: ref.id) else { return }
+            appState.inspectorWiki = wiki
+            appState.inspectorMode = .wiki
+            appState.showInspector = true
         }
     }
 
@@ -158,11 +161,14 @@ struct MessageBubbleView: View {
         ref.kind == .wiki ? "book.closed.fill" : "note.text"
     }
 
-    /// 현재 인스펙터에서 미리보기 중인 메모인지(하이라이트).
+    /// 현재 인스펙터에서 미리보기 중인 출처인지(하이라이트).
     private func isActive(_ ref: ChatReference) -> Bool {
-        ref.kind == .memo
-            && appState.showInspector
-            && appState.inspectorMode == .source
-            && appState.inspectorSource?.id == ref.id
+        guard appState.showInspector else { return false }
+        switch ref.kind {
+        case .memo:
+            return appState.inspectorMode == .source && appState.inspectorSource?.id == ref.id
+        case .wiki:
+            return appState.inspectorMode == .wiki && appState.inspectorWiki?.id == ref.id
+        }
     }
 }

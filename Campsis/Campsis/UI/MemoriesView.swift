@@ -384,16 +384,69 @@ struct MemoriesView: View {
 
     @State private var sourceToDelete: Source?
 
+    /// 기억이 하나도 없을 때(신규 사용자) 저장 방법을 안내하는 빈 상태.
+    private var emptyLibraryState: some View {
+        ContentUnavailableView {
+            Label(emptyTitle, systemImage: "tray")
+        } description: {
+            Text(emptyDescription)
+        } actions: {
+            if filter == .all || filter == .today {
+                Button {
+                    NotificationCenter.default.post(name: .triggerQuickMemory, object: nil)
+                } label: {
+                    Label("빠른 메모 작성", systemImage: "square.and.pencil")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyTitle: String {
+        switch filter {
+        case .all, .today: return "아직 저장된 기억이 없어요"
+        default: return "아직 \(filter.label) 기억이 없어요"
+        }
+    }
+
+    private var emptyDescription: String {
+        switch filter {
+        case .all, .today:
+            return "화면 어디서나 ⌥Space로 텍스트·스크린샷을,\n⌥⇧Space로 빠른 메모를 저장할 수 있어요."
+        default:
+            return "새로운 기억이 저장되면 여기에 표시됩니다."
+        }
+    }
+
+    /// 필터·검색·날짜로 결과가 비었을 때의 설명 문구.
+    private var noResultsDescription: String {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "검색 결과가 없습니다."
+        }
+        if selectedDate != nil {
+            return "선택한 날짜에 저장된 기억이 없습니다."
+        }
+        if wikiFilter != .all {
+            return "이 조건에 맞는 기억이 없어요."
+        }
+        return "표시할 기억이 없습니다."
+    }
+
     @ViewBuilder
     private var sourceList: some View {
         let groups = groupedSources
         let searching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        if groups.isEmpty && wikiMatches.isEmpty && (selectedDate != nil || searching) {
+        if sources.isEmpty {
+            // 이 라이브러리에 기억이 하나도 없음(신규 사용자 포함) → 저장 방법 안내.
+            emptyLibraryState
+        } else if groups.isEmpty && wikiMatches.isEmpty {
+            // 기억은 있으나 검색·날짜·위키 필터로 전부 걸러진 경우.
             ContentUnavailableView(
                 "기억 없음",
                 systemImage: "magnifyingglass",
-                description: Text(searchText.isEmpty ? "선택한 날짜에 저장된 기억이 없습니다." : "검색 결과가 없습니다.")
+                description: Text(noResultsDescription)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

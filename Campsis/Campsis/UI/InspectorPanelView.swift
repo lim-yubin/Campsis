@@ -17,33 +17,42 @@ struct InspectorPanelView: View {
         @Bindable var appState = appState
 
         VStack(spacing: 0) {
-            Picker("보기", selection: $appState.inspectorMode) {
-                Text("정리본").tag(InspectorMode.source)
-                Text("메모리").tag(InspectorMode.memories)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            Divider()
-
-            switch appState.inspectorMode {
-            case .source:
-                if let source = appState.inspectorSource {
-                    SourcePreviewView(source: source) { tab in
-                        fullDetail = FullDetailRequest(source: source, tab: tab)
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "출처를 선택하세요",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("채팅 답변 하단의 출처를 클릭하면\n정리본이 여기에 표시됩니다.")
-                    )
+            if appState.inspectorMode == .wiki, let wiki = appState.inspectorWiki {
+                // 위키 미리보기: 채팅 대화를 떠나지 않고 옆에서 위키를 확인.
+                wikiPreviewHeader
+                Divider()
+                WikiPreviewView(wiki: wiki)
+            } else {
+                Picker("보기", selection: $appState.inspectorMode) {
+                    Text("정리본").tag(InspectorMode.source)
+                    Text("기억").tag(InspectorMode.memories)
                 }
-            case .memories:
-                InspectorMemoriesList { source in
-                    fullDetail = FullDetailRequest(source: source, tab: nil)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+                Divider()
+
+                switch appState.inspectorMode {
+                case .source:
+                    if let source = appState.inspectorSource {
+                        SourcePreviewView(source: source) { tab in
+                            fullDetail = FullDetailRequest(source: source, tab: tab)
+                        }
+                    } else {
+                        ContentUnavailableView(
+                            "출처를 선택하세요",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text("채팅 답변 하단의 출처를 클릭하면\n정리본이 여기에 표시됩니다.")
+                        )
+                    }
+                case .memories:
+                    InspectorMemoriesList { source in
+                        fullDetail = FullDetailRequest(source: source, tab: nil)
+                    }
+                case .wiki:
+                    EmptyView()   // inspectorWiki가 없을 때만 도달(위 분기에서 처리)
                 }
             }
         }
@@ -63,6 +72,26 @@ struct InspectorPanelView: View {
             .frame(minWidth: 640, minHeight: 560)
         }
     }
+
+    /// 위키 미리보기 상단 바. 세그먼트 대신 뒤로가기 + 위키 라벨을 보여준다.
+    private var wikiPreviewHeader: some View {
+        HStack(spacing: 6) {
+            Button {
+                appState.inspectorMode = .memories
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.plain)
+            .help("기억 목록으로")
+
+            Label("위키", systemImage: "books.vertical")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
 }
 
 /// 어느 화면에서든 분할 창(인스펙터)을 열고 닫는 툴바 토글 버튼. (A3)
@@ -81,7 +110,7 @@ struct InspectorToggleButton: View {
         } label: {
             Label("분할 보기", systemImage: "sidebar.right")
         }
-        .help("메모리를 화면 분할로 함께 보기")
+        .help("기억을 화면 분할로 함께 보기")
     }
 }
 
@@ -263,7 +292,7 @@ private struct InspectorMemoriesList: View {
         .overlay {
             if sources.isEmpty {
                 ContentUnavailableView(
-                    "메모리 없음",
+                    "기억 없음",
                     systemImage: "tray",
                     description: Text("아직 저장된 기억이 없습니다.")
                 )
@@ -274,5 +303,119 @@ private struct InspectorMemoriesList: View {
 
     private func load() {
         sources = (try? appState.sourceRepository.fetchAll()) ?? []
+    }
+}
+
+/// 인스펙터에서 보여주는 읽기 전용 위키 미리보기. 채팅 위키 출처를 클릭하면
+/// 대화를 떠나지 않고 이 패널에서 종합 문서를 확인한다. 전체 화면은 "나의 위키에서 열기".
+struct WikiPreviewView: View {
+    let wiki: Wiki
+    @Environment(AppState.self) private var appState
+    @State private var current: Wiki
+    @State private var markdown: String?
+    @State private var toast: String?
+
+    init(wiki: Wiki) {
+        self.wiki = wiki
+        _current = State(initialValue: wiki)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+
+                if let md = markdown, !md.isEmpty {
+                    MarkdownTextView(text: stripH1(md))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if current.markdownStatus == .pending || current.markdownStatus == .processing {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("종합 문서를 작성하고 있어요.").foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("아직 종합 내용이 없어요.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                openFullButton
+            }
+            .padding(16)
+        }
+        .copyToast($toast)
+        .task(id: wiki.id) { load() }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "book.closed.fill")
+                    .foregroundStyle(Color.chatAccent)
+                Text(current.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                copyMenu
+            }
+            if let summary = current.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Text("메모 \(current.memberCount)개로 만들어졌어요")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private var copyMenu: some View {
+        if let md = markdown, !md.isEmpty {
+            Menu {
+                Button("마크다운으로 복사") {
+                    MarkdownClipboard.copyMarkdown(md)
+                    toast = "복사되었습니다"
+                }
+                Button("일반 텍스트로 복사") {
+                    MarkdownClipboard.copyPlain(md)
+                    toast = "복사되었습니다"
+                }
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("위키 복사")
+        }
+    }
+
+    private var openFullButton: some View {
+        Button {
+            appState.pendingWikiId = current.id
+            NotificationCenter.default.post(name: .openWiki, object: nil)
+        } label: {
+            Label("나의 위키에서 열기", systemImage: "arrow.up.forward.square")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.top, 4)
+    }
+
+    private func load() {
+        if let refreshed = try? appState.wikiRepository.fetch(id: wiki.id) {
+            current = refreshed
+            markdown = appState.wikiRepository.readMarkdown(refreshed)
+        }
+    }
+
+    /// 헤더에서 제목을 이미 보여주므로 본문 H1은 제거(중복 방지).
+    private func stripH1(_ md: String) -> String {
+        var lines = md.components(separatedBy: "\n")
+        if let first = lines.first, first.hasPrefix("# ") {
+            lines.removeFirst()
+            while lines.first?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeFirst() }
+        }
+        return lines.joined(separator: "\n")
     }
 }

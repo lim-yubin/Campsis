@@ -130,7 +130,7 @@ struct ShortcutSettingsView: View {
                 }
 
                 HStack {
-                    Text("메모리 열기")
+                    Text("기억 열기")
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .openMemory)
                 }

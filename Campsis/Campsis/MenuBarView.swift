@@ -15,7 +15,7 @@ struct MenuBarView: View {
 
         Divider()
 
-        Button("메모리 열기") {
+        Button("기억 열기") {
             openMemoryWindow()
         }
 

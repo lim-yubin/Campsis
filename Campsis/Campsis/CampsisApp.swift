@@ -44,7 +44,7 @@ struct CampsisCommands: Commands {
 
             Divider()
 
-            Button("메모리 열기") {
+            Button("기억 열기") {
                 openMain()
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])
@@ -85,10 +85,11 @@ enum ModelStatus: Equatable {
     var isReady: Bool { self == .ready }
 }
 
-/// 인스펙터 패널이 보여줄 내용. 출처 정리본 미리보기 또는 전체 메모리 목록.
+/// 인스펙터 패널이 보여줄 내용. 출처 정리본 미리보기 / 전체 기억 목록 / 위키 미리보기.
 enum InspectorMode: Hashable {
     case source
     case memories
+    case wiki
 }
 
 @Observable
@@ -113,9 +114,11 @@ final class AppState {
     var streamingText: [String: String] = [:]
     private var generationTasks: [String: Task<Void, Never>] = [:]
 
-    // 인스펙터(오른쪽 분할 패널) 상태: 출처 정리본 미리보기 ↔ 메모리 목록 탐색
+    // 인스펙터(오른쪽 분할 패널) 상태: 출처 정리본 미리보기 ↔ 기억 목록 ↔ 위키 미리보기
     var showInspector = false
     var inspectorSource: Source?
+    /// 채팅 위키 출처를 인스펙터에서 미리볼 때의 대상 위키.
+    var inspectorWiki: Wiki?
     var inspectorMode: InspectorMode = .source
 
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
@@ -285,7 +288,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(dockMenuItem("빠른 메모", #selector(dockQuickMemory)))
         menu.addItem(dockMenuItem("새 채팅", #selector(dockNewChat)))
-        menu.addItem(dockMenuItem("메모리 열기", #selector(dockOpenMemory)))
+        menu.addItem(dockMenuItem("기억 열기", #selector(dockOpenMemory)))
         return menu
     }
 

@@ -248,7 +248,8 @@ nonisolated struct WikiRepository: Sendable {
                 let from = link.fromWikiId == sourceWikiId ? targetWikiId : link.fromWikiId
                 let to = link.toWikiId == sourceWikiId ? targetWikiId : link.toWikiId
                 if from != to {
-                    try WikiWikiLink(fromWikiId: from, toWikiId: to, weight: link.weight).save(db)
+                    try WikiWikiLink(fromWikiId: from, toWikiId: to,
+                                     weight: link.weight, kind: link.kind).save(db)
                 }
             }
 
@@ -276,10 +277,12 @@ nonisolated struct WikiRepository: Sendable {
 
     // MARK: - 위키 ↔ 위키 링크
 
-    func addWikiLink(from fromWikiId: String, to toWikiId: String, weight: Double? = nil) throws {
+    func addWikiLink(from fromWikiId: String, to toWikiId: String, weight: Double? = nil,
+                     kind: WikiLinkKind = .explicit) throws {
         guard fromWikiId != toWikiId else { return }
         try dbQueue.write { db in
-            let link = WikiWikiLink(fromWikiId: fromWikiId, toWikiId: toWikiId, weight: weight)
+            let link = WikiWikiLink(fromWikiId: fromWikiId, toWikiId: toWikiId,
+                                    weight: weight, kind: kind)
             try link.save(db)
         }
     }
@@ -291,6 +294,38 @@ nonisolated struct WikiRepository: Sendable {
                 .fetchAll(db)
                 .map(\.toWikiId)
         }
+    }
+
+    /// 한 위키의 `similarity` 백링크를 통째로 교체한다(양방향).
+    /// 한 트랜잭션에서 (1) wikiId가 from/to로 등장하는 기존 `similarity` 링크 삭제,
+    /// (2) targets(위키 id + 가중치=코사인)로 양방향 `similarity` 링크 삽입.
+    /// PK가 (from,to)라 쌍당 1행이므로, 이미 `explicit`/`comembership`/`relatedTopic`
+    /// 링크가 있는 쌍은 **건드리지 않고 보존**한다(이미 관련이므로 유사도 링크 불필요).
+    func replaceSimilarityLinks(forWiki wikiId: String, targets: [(wikiId: String, weight: Double)]) throws {
+        try dbQueue.write { db in
+            let kindValue = WikiLinkKind.similarity.rawValue
+            try WikiWikiLink
+                .filter(WikiWikiLink.Columns.kind == kindValue)
+                .filter(WikiWikiLink.Columns.fromWikiId == wikiId
+                        || WikiWikiLink.Columns.toWikiId == wikiId)
+                .deleteAll(db)
+
+            for target in targets where target.wikiId != wikiId {
+                try insertSimilarityIfAbsent(db, from: wikiId, to: target.wikiId, weight: target.weight)
+                try insertSimilarityIfAbsent(db, from: target.wikiId, to: wikiId, weight: target.weight)
+            }
+        }
+    }
+
+    /// 해당 방향 쌍에 링크가 전혀 없을 때만 `similarity` 링크를 삽입한다.
+    /// (다른 출처 링크가 있으면 upsert로 덮어써 provenance/weight를 잃지 않도록 보호.)
+    private func insertSimilarityIfAbsent(_ db: Database, from: String, to: String, weight: Double) throws {
+        let exists = try WikiWikiLink
+            .filter(WikiWikiLink.Columns.fromWikiId == from)
+            .filter(WikiWikiLink.Columns.toWikiId == to)
+            .fetchCount(db) > 0
+        guard !exists else { return }
+        try WikiWikiLink(fromWikiId: from, toWikiId: to, weight: weight, kind: .similarity).insert(db)
     }
 
     // MARK: - 위키 페이지 임베딩 (OW2)

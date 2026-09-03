@@ -55,7 +55,7 @@ nonisolated struct WikiPromoter: Sendable {
         for (_, wikiIds) in wikisBySource where wikiIds.count > 1 {
             for a in wikiIds {
                 for b in wikiIds where a != b {
-                    try wikiRepository.addWikiLink(from: a, to: b, weight: 1.0)
+                    try wikiRepository.addWikiLink(from: a, to: b, weight: 1.0, kind: .comembership)
                 }
             }
         }

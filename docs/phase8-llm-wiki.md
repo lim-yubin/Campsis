@@ -138,7 +138,10 @@ Andrej Karpathy의 **"LLM wiki"** 패턴(원문: gist 442a6bf…)을 **비개발
 | `from_wiki_id` | TEXT FK→wiki | |
 | `to_wiki_id` | TEXT FK→wiki | |
 | `weight` | REAL? | 관련도 |
+| `kind` | TEXT | 출처(provenance, v9): `explicit`/`comembership`/`relatedTopic`/`similarity`. 기본 `explicit` |
 | PK | (`from_wiki_id`,`to_wiki_id`) | |
+
+> **kind(provenance) — v9 추가.** 링크 생성 경로별로 출처를 구분해 **자동 유사도 링크만 안전히 재계산**한다. `comembership`(승격 시 공동소속, weight 1.0), `relatedTopic`(재합성 `related_topics`가 기존 slug와 일치, 0.8), `similarity`(위키 임베딩 유사도 자동 백링크, 재계산 대상), `explicit`(수동/구버전 링크). PK가 (from,to)라 쌍당 1행이므로, 유사도 재계산은 이미 다른 kind 링크가 있는 쌍은 덮어쓰지 않고 보존한다(`insertSimilarityIfAbsent`).
 
 ### `wiki_revision` (되돌리기 스냅샷, OW4 확정)
 | 컬럼 | 타입 | 설명 |
@@ -204,7 +207,13 @@ Andrej Karpathy의 **"LLM wiki"** 패턴(원문: gist 442a6bf…)을 **비개발
   - {메모2 …}
   ```
 - 출력 JSON: `{ "markdown": string, "summary": string, "related_topics": string[] }`
-  - `related_topics` → `wiki_wiki_link` 후보로 사용(기존 위키명과 매칭되면 백링크 생성).
+  - `related_topics` → `wiki_wiki_link` 후보로 사용(기존 위키명과 매칭되면 백링크 생성, `kind=relatedTopic`).
+
+### 관련 위키 유사도 백링크(v9, slug 불일치 보강)
+`related_topics`는 LLM이 뽑은 이름이 **기존 위키 slug와 정확히 일치**할 때만 이어지므로, 제목/키워드가 다르지만 의미가 가까운 위키는 놓친다. 이를 **위키 페이지 임베딩 코사인 유사도**로 보강한다(LLM 비호출, 추가 비용 0).
+- 계산: `WikiMaintenance.similarityTargets(forWiki:)`(단일)·`allSimilarityTargets()`(전체). 저장된 위키 임베딩(OW2)만 사용, `cos ≥ T_related`(0.55, OW3) 상위 `maxSimilarLinks`(5)개.
+- 저장: `WikiRepository.replaceSimilarityLinks(forWiki:targets:)` — 해당 위키의 `similarity` 링크만 삭제 후 양방향 재삽입. 이미 다른 kind 링크가 있는 쌍은 보존.
+- 트리거 2종: ①**자동 piggyback** — `WikiResynthesizer`가 재합성/수동편집 후 위키를 재임베딩한 직후 `linkSimilarWikis(wikiId:)`. ②**수동 전체 스캔** — "나의 위키" 툴바 "관련 위키 다시 잇기" 버튼이 전체 위키 쌍을 스캔해 `similarity` 링크를 통째 재구축(자동은 갱신된 위키만 잇는 한계를 보완).
 
 ### 새 위키 첫 종합
 - 기존 페이지가 없으므로 초기 구성원들만으로 종합. 같은 JSON 스키마.
@@ -320,6 +329,7 @@ Andrej Karpathy의 **"LLM wiki"** 패턴(원문: gist 442a6bf…)을 **비개발
   - **T_high = 0.55**(자동 선택), **T_low = 0.40**(후보 제시 하한, 채팅 relevanceFloor와 정렬). 사이 밴드 = 사용자 선택.
   - **콜드스타트:** T_high를 위키 수로 스케일(0~2개 0.65 / 3~4개 0.60 / 5+ 0.55). T_low 고정.
   - **T_merge = 0.80**(위키↔위키 병합 제안) 또는 `topic_slug` 정규화 일치. 병합은 파괴적이라 보수적 고값.
+  - **T_related = 0.55**(위키↔위키 관련 유사도 백링크, `kind=similarity`, 위키당 상위 5). 비파괴(연결만)라 병합(0.80)보다 낮게, 자동선택 T_high와 정렬. 강하게 유사한 쌍(≥0.80)은 병합 제안과 공존. (v9 보강, 위 "관련 위키 유사도 백링크" 참조)
   - **N_max = 3**(한 메모의 목적지 위키 상한, 재합성 비용 곱연산 방지).
   - **튜닝 방법:** 값들을 한 곳(상수/설정)에 모아 관리(현 `relevanceFloor`/`relativeMargin` 패턴). 라우팅 미리보기의 사용자 수락/거절이 곧 라벨 → 승격 시 `match_score` 저장 후, 수락 vs 거절 분포를 보고 T_high/T_low 재조정. 데이터 없기 전엔 보수적 유지 + 사용자가 미리보기에서 교정.
 - **OW4. 되돌리기 저장 방식 — 확정(2026-09-02): MD 스냅샷.** ~~스냅샷 vs git 유사 이력~~ → 스냅샷 채택(git 유사 이력은 비개발자에게 과잉·취약, §10 요구는 "원클릭 되돌리기"지 VCS 아님). 위키 MD 쓰기 직전 이전 버전을 `wiki_revision` 테이블+`wiki_revisions/{wikiId}/{id}.md`로 보관, 위키당 최근 N=10 링버퍼. 되돌리기=직전 MD 복원+재임베딩(승격이면 `added_source_ids` 링크 제거·member_count 복구). 상세 §4·§10. (MD 수 KB라 디스크 부담 무시 가능)

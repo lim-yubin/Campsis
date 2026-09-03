@@ -434,6 +434,58 @@ struct WikiRepositoryTests {
         #expect(records.count == 1)  // 교체됨
         #expect(records.first?.vectorAsFloats().count == 3)
     }
+
+    @Test func wikiLinkKindPersists() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+        var a = Wiki(title: "A", topicSlug: "a")
+        var b = Wiki(title: "B", topicSlug: "b")
+        try repo.save(&a)
+        try repo.save(&b)
+
+        // v9 kind 컬럼: 기본값 explicit / 지정값 comembership 왕복.
+        try repo.addWikiLink(from: a.id, to: b.id)                       // 기본 explicit
+        let link = try db.dbQueue.read { database in
+            try WikiWikiLink
+                .filter(WikiWikiLink.Columns.fromWikiId == a.id)
+                .fetchOne(database)
+        }
+        #expect(link?.kind == .explicit)
+    }
+
+    @Test func replaceSimilarityLinksPreservesOtherKinds() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+        var a = Wiki(title: "A", topicSlug: "a")
+        var b = Wiki(title: "B", topicSlug: "b")
+        var c = Wiki(title: "C", topicSlug: "c")
+        var d = Wiki(title: "D", topicSlug: "d")
+        try repo.save(&a); try repo.save(&b); try repo.save(&c); try repo.save(&d)
+
+        // 보존돼야 하는 비-유사도 링크(공동소속) + 교체 대상 stale similarity 링크.
+        try repo.addWikiLink(from: a.id, to: b.id, weight: 1.0, kind: .comembership)
+        try repo.addWikiLink(from: a.id, to: c.id, weight: 0.6, kind: .similarity)  // stale
+
+        // 재계산: a는 이제 d와만 유사(스코어 0.9). b(공동소속)는 보존, c(stale)는 제거.
+        try repo.replaceSimilarityLinks(forWiki: a.id, targets: [(wikiId: d.id, weight: 0.9)])
+
+        let related = try Set(repo.relatedWikiIds(forWiki: a.id))
+        #expect(related.contains(b.id))    // comembership 보존
+        #expect(related.contains(d.id))    // 새 similarity
+        #expect(!related.contains(c.id))   // stale similarity 제거
+        // 양방향: d→a similarity 도 생성.
+        #expect(try repo.relatedWikiIds(forWiki: d.id).contains(a.id))
+        // 이미 comembership인 a→b 쌍은 similarity로 덮어써지지 않는다.
+        try repo.replaceSimilarityLinks(forWiki: a.id, targets: [(wikiId: b.id, weight: 0.99)])
+        let ab = try db.dbQueue.read { database in
+            try WikiWikiLink
+                .filter(WikiWikiLink.Columns.fromWikiId == a.id)
+                .filter(WikiWikiLink.Columns.toWikiId == b.id)
+                .fetchOne(database)
+        }
+        #expect(ab?.kind == .comembership)
+        #expect(ab?.weight == 1.0)
+    }
 }
 
 @Suite struct WikiRouterTests {
@@ -635,6 +687,34 @@ struct MockWikiSynthesizer: WikiSynthesizer {
         let past = Date().addingTimeInterval(-(LintDismissStore.cooldown + 1))
         LintDismissStore.dismiss(id, now: past)
         #expect(LintDismissStore.isDismissed(id) == false)
+    }
+
+    @Test func rebuildSimilarityLinksConnectsCloseWikis() throws {
+        let db = try makeInMemoryDatabase()
+        let repo = WikiRepository(dbQueue: db.dbQueue)
+
+        var a = Wiki(title: "A", topicSlug: "a-\(UUID().uuidString)")
+        var b = Wiki(title: "B", topicSlug: "b-\(UUID().uuidString)")
+        var c = Wiki(title: "C", topicSlug: "c-\(UUID().uuidString)")
+        try repo.save(&a); try repo.save(&b); try repo.save(&c)
+
+        let model = EmbeddingService.modelName
+        let version = EmbeddingService.embeddingVersion
+        // a와 b는 코사인 ~0.99(임계 0.55 초과), c는 직교(0).
+        try repo.saveEmbedding([1, 0, 0], forWiki: a.id, model: model, version: version)
+        try repo.saveEmbedding([0.9, 0.1, 0], forWiki: b.id, model: model, version: version)
+        try repo.saveEmbedding([0, 0, 1], forWiki: c.id, model: model, version: version)
+
+        // 전체 스캔(수동 버튼과 동일 경로): 모든 위키 이웃 계산 후 similarity 링크 재구축.
+        let maintenance = WikiMaintenance(wikiRepository: repo)
+        let all = maintenance.allSimilarityTargets()
+        for (wikiId, targets) in all {
+            try repo.replaceSimilarityLinks(forWiki: wikiId, targets: targets)
+        }
+
+        #expect(try repo.relatedWikiIds(forWiki: a.id) == [b.id])
+        #expect(try repo.relatedWikiIds(forWiki: b.id) == [a.id])
+        #expect(try repo.relatedWikiIds(forWiki: c.id).isEmpty)
     }
 }
 

@@ -30,6 +30,7 @@ actor WikiResynthesizer {
         guard let wiki = try? wikiRepository.fetch(id: wikiId),
               let markdown = wikiRepository.readMarkdown(wiki), !markdown.isEmpty else { return }
         await embedWiki(wiki, summary: wiki.summary, markdown: markdown)
+        linkSimilarWikis(wikiId: wikiId)
     }
 
     /// 승격 배치의 모든 대상 위키를 순차 재합성(비용/레이트 통제).
@@ -78,6 +79,7 @@ actor WikiResynthesizer {
 
             await embedWiki(wiki, summary: out.summary, markdown: out.markdown)
             applyRelatedTopics(out.relatedTopics, for: wiki)
+            linkSimilarWikis(wikiId: wikiId)
             NSLog("[Campsis] Resynthesized wiki \(wikiId): completed")
         } catch {
             NSLog("[Campsis] Resynthesis failed for wiki \(wikiId): \(error)")
@@ -136,8 +138,18 @@ actor WikiResynthesizer {
             guard slug != wiki.topicSlug,
                   let target = try? wikiRepository.fetch(topicSlug: slug),
                   target.id != wiki.id else { continue }
-            try? wikiRepository.addWikiLink(from: wiki.id, to: target.id, weight: 0.8)
-            try? wikiRepository.addWikiLink(from: target.id, to: wiki.id, weight: 0.8)
+            try? wikiRepository.addWikiLink(from: wiki.id, to: target.id, weight: 0.8, kind: .relatedTopic)
+            try? wikiRepository.addWikiLink(from: target.id, to: wiki.id, weight: 0.8, kind: .relatedTopic)
         }
+    }
+
+    // MARK: - 유사도 백링크 (piggyback)
+
+    /// 방금 재임베딩된 위키를 기준으로 유사 위키 `similarity` 백링크를 재계산한다.
+    /// 저장된 임베딩만 사용(LLM 비호출) → 추가 비용 0. slug가 달라도 의미가 가까우면 연결.
+    private func linkSimilarWikis(wikiId: String) {
+        let maintenance = WikiMaintenance(wikiRepository: wikiRepository)
+        let targets = maintenance.similarityTargets(forWiki: wikiId)
+        try? wikiRepository.replaceSimilarityLinks(forWiki: wikiId, targets: targets)
     }
 }

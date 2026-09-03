@@ -169,5 +169,14 @@ nonisolated enum AppMigrations {
                 columns: ["embedding_model", "embedding_version"]
             )
         }
+
+        // Phase 8 백링크 보강 — 위키↔위키 링크에 출처(kind) 추가.
+        // 자동 유사도 링크(similarity)만 안전하게 재계산/정리하기 위한 provenance.
+        // 기존 링크는 explicit로 백필(무해).
+        migrator.registerMigration("v9-wiki-link-kind") { db in
+            try db.alter(table: "wiki_wiki_link") { t in
+                t.add(column: "kind", .text).notNull().defaults(to: "explicit")
+            }
+        }
     }
 }

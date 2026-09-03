@@ -103,16 +103,28 @@ nonisolated extension NoteWikiLink: FetchableRecord, PersistableRecord {
     }
 }
 
+/// 위키↔위키 링크의 출처(provenance). 자동 유사도 링크만 안전히 재계산/정리하기 위함.
+nonisolated enum WikiLinkKind: String, Codable, DatabaseValueConvertible, Sendable {
+    case explicit      // 사용자/수동 또는 v9 이전 기존 링크(기본값)
+    case comembership  // 승격 시 공동 소속(같은 메모가 여러 위키로) — weight 1.0
+    case relatedTopic  // 재합성 LLM related_topics가 기존 slug와 일치 — weight 0.8
+    case similarity    // 위키 임베딩 유사도 자동 백링크(재계산 대상)
+}
+
 /// 위키 ↔ 위키 관련 토픽 백링크.
 nonisolated struct WikiWikiLink: Codable, Sendable, Hashable {
     var fromWikiId: String
     var toWikiId: String
     var weight: Double?
+    /// 링크 출처. 재계산 시 `similarity`만 교체하고 나머지는 보존한다.
+    var kind: WikiLinkKind
 
-    init(fromWikiId: String, toWikiId: String, weight: Double? = nil) {
+    init(fromWikiId: String, toWikiId: String, weight: Double? = nil,
+         kind: WikiLinkKind = .explicit) {
         self.fromWikiId = fromWikiId
         self.toWikiId = toWikiId
         self.weight = weight
+        self.kind = kind
     }
 }
 
@@ -123,12 +135,14 @@ nonisolated extension WikiWikiLink: FetchableRecord, PersistableRecord {
         case fromWikiId = "from_wiki_id"
         case toWikiId = "to_wiki_id"
         case weight
+        case kind
     }
 
     enum CodingKeys: String, CodingKey {
         case fromWikiId = "from_wiki_id"
         case toWikiId = "to_wiki_id"
         case weight
+        case kind
     }
 }
 

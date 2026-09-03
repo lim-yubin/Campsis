@@ -8,6 +8,8 @@ struct WikiListView: View {
     @State private var path: [Wiki] = []
     // Phase 8.11: 위키 유지보수(Lint) 제안 카드
     @State private var suggestions: [LintSuggestion] = []
+    // 관련 위키 수동 전체 재구축 진행 상태
+    @State private var isRelinking = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -20,6 +22,19 @@ struct WikiListView: View {
             }
             .navigationTitle("나의 위키")
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        relinkAll()
+                    } label: {
+                        if isRelinking {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("관련 위키 다시 잇기", systemImage: "link.badge.plus")
+                        }
+                    }
+                    .help("모든 위키의 의미가 가까운 관계를 다시 계산해 연결해요")
+                    .disabled(wikis.count < 2 || isRelinking)
+                }
                 ToolbarItem(placement: .primaryAction) {
                     InspectorToggleButton()
                 }
@@ -143,6 +158,28 @@ struct WikiListView: View {
     private func dismiss(_ suggestion: LintSuggestion) {
         LintDismissStore.dismiss(suggestion.id)
         withAnimation { suggestions.removeAll { $0.id == suggestion.id } }
+    }
+
+    // MARK: - 관련 위키 수동 전체 재구축
+
+    /// 전체 위키 쌍의 임베딩 유사도를 다시 계산해 `similarity` 백링크를 통째로 재구축한다.
+    /// 로컬 벡터 연산만 사용(LLM 비호출). 공동소속/관련토픽/수동 링크는 보존된다.
+    private func relinkAll() {
+        guard !isRelinking else { return }
+        isRelinking = true
+        let repo = appState.wikiRepository
+        Task {
+            await Task.detached(priority: .utility) {
+                let maintenance = WikiMaintenance(wikiRepository: repo)
+                let all = maintenance.allSimilarityTargets()
+                for (wikiId, targets) in all {
+                    try? repo.replaceSimilarityLinks(forWiki: wikiId, targets: targets)
+                }
+            }.value
+            isRelinking = false
+            load()
+            NotificationCenter.default.post(name: .wikiUpdated, object: nil)
+        }
     }
 
     private func load() {

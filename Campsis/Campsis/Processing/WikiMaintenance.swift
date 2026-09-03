@@ -26,6 +26,11 @@ nonisolated struct WikiMaintenance: Sendable {
     /// 위키↔위키 병합 제안 임계값(OW3 T_merge). 파괴적이라 보수적 고값.
     static let tMerge: Float = 0.80
 
+    /// '관련 위키' 유사도 백링크 임계값(OW3 T_high와 정렬). 비파괴라 병합보다 낮게.
+    static let tRelated: Float = 0.55
+    /// 위키당 유지할 유사도 백링크 최대 개수.
+    static let maxSimilarLinks = 5
+
     /// 전체 위키를 점검해 제안 목록을 만든다(dismiss 필터는 호출부에서).
     func scan() -> [LintSuggestion] {
         let wikis = (try? wikiRepository.fetchAll()) ?? []
@@ -94,6 +99,45 @@ nonisolated struct WikiMaintenance: Sendable {
                 title: "빈 위키",
                 message: "‘\(wiki.title)’에 구성 메모가 없어요. 정리하거나 삭제할까요?")
         }
+    }
+
+    // MARK: - 관련 위키 유사도 백링크
+
+    /// 한 위키의 유사 이웃(위키 id + 코사인)을 **저장된 임베딩만으로** 계산한다(LLM 비호출).
+    /// 재합성/수동편집 piggyback에서 사용.
+    func similarityTargets(forWiki wikiId: String) -> [(wikiId: String, weight: Double)] {
+        let vectorById = loadVectors()
+        guard let base = vectorById[wikiId] else { return [] }
+        return neighbors(of: wikiId, base: base, among: vectorById)
+    }
+
+    /// 모든 위키의 유사 이웃 맵(수동 전체 재구축용). 임베딩을 한 번만 로드해 O(n^2) 스캔.
+    func allSimilarityTargets() -> [String: [(wikiId: String, weight: Double)]] {
+        let vectorById = loadVectors()
+        var out: [String: [(wikiId: String, weight: Double)]] = [:]
+        for (id, base) in vectorById {
+            out[id] = neighbors(of: id, base: base, among: vectorById)
+        }
+        return out
+    }
+
+    private func loadVectors() -> [String: [Float]] {
+        let records = (try? wikiRepository.fetchAllEmbeddings(
+            model: EmbeddingService.modelName,
+            version: EmbeddingService.embeddingVersion)) ?? []
+        return Dictionary(records.map { ($0.wikiId, $0.vectorAsFloats()) },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
+    private func neighbors(of wikiId: String, base: [Float],
+                           among vectorById: [String: [Float]]) -> [(wikiId: String, weight: Double)] {
+        var scored: [(wikiId: String, weight: Double)] = []
+        for (other, vec) in vectorById where other != wikiId {
+            let cos = cosine(base, vec)
+            if cos >= Self.tRelated { scored.append((wikiId: other, weight: Double(cos))) }
+        }
+        scored.sort { $0.weight > $1.weight }
+        return Array(scored.prefix(Self.maxSimilarLinks))
     }
 
     private func cosine(_ a: [Float], _ b: [Float]) -> Float {

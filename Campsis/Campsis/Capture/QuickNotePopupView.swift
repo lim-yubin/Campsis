@@ -20,7 +20,7 @@ struct QuickNotePopupView: View {
             TextEditor(text: $noteText)
                 .font(.body)
                 .focused($textFocused)
-                .frame(minHeight: 120, maxHeight: 200)
+                .frame(minHeight: 120, maxHeight: .infinity)
                 .scrollContentBackground(.hidden)
                 .padding(8)
                 .background(.quaternary)
@@ -30,18 +30,20 @@ struct QuickNotePopupView: View {
                 Text("\(noteText.count)자")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                Text("⌘↩ 저장 · esc 취소")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 Spacer()
                 Button("취소") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("기억하기") { save() }
-                    .keyboardShortcut(.defaultAction)
+                    .keyboardShortcut(.return, modifiers: .command)
                     .buttonStyle(.borderedProminent)
                     .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 420)
-        .frame(minHeight: 240)
+        .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { textFocused = true }
     }
 

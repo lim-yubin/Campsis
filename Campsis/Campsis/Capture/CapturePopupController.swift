@@ -24,34 +24,12 @@ final class CapturePopupController {
             self?.close()
         }
 
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 420, height: 320)
-
-        let panel = NSPanel(
-            contentRect: hostingView.frame,
-            styleMask: [.titled, .closable, .nonactivatingPanel, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
+        let panel = makeFloatingPanel(
+            view,
+            defaultSize: NSSize(width: 560, height: 460),
+            minSize: NSSize(width: 480, height: 360)
         )
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
-        panel.contentView = hostingView
-
-        let mouseLocation = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
-        if let screen {
-            let screenFrame = screen.visibleFrame
-            let panelSize = panel.frame.size
-            let x = screenFrame.midX - panelSize.width / 2
-            let y = screenFrame.midY - panelSize.height / 2
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
         panel.makeKeyAndOrderFront(nil)
-
         self.panel = panel
     }
 
@@ -62,12 +40,25 @@ final class CapturePopupController {
             self?.close()
         }
 
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 420, height: 280)
+        let panel = makeFloatingPanel(
+            view,
+            defaultSize: NSSize(width: 520, height: 380),
+            minSize: NSSize(width: 460, height: 320)
+        )
+        panel.makeKeyAndOrderFront(nil)
+        self.panel = panel
+    }
+
+    /// 공통 플로팅 패널 생성. 리사이즈 가능(.resizable) + 최소 크기 제약 + 활성 스크린 중앙 배치.
+    private func makeFloatingPanel(_ content: some View,
+                                   defaultSize: NSSize,
+                                   minSize: NSSize) -> NSPanel {
+        let hostingView = NSHostingView(rootView: content)
+        hostingView.frame = NSRect(origin: .zero, size: defaultSize)
 
         let panel = NSPanel(
             contentRect: hostingView.frame,
-            styleMask: [.titled, .closable, .nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -76,20 +67,22 @@ final class CapturePopupController {
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
+        panel.contentMinSize = minSize
         panel.contentView = hostingView
+        centerOnActiveScreen(panel)
+        return panel
+    }
 
+    /// 마우스가 위치한 스크린의 visibleFrame 중앙으로 패널을 이동한다.
+    private func centerOnActiveScreen(_ panel: NSPanel) {
         let mouseLocation = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
-        if let screen {
-            let screenFrame = screen.visibleFrame
-            let panelSize = panel.frame.size
-            let x = screenFrame.midX - panelSize.width / 2
-            let y = screenFrame.midY - panelSize.height / 2
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        panel.makeKeyAndOrderFront(nil)
-        self.panel = panel
+        guard let screen else { return }
+        let screenFrame = screen.visibleFrame
+        let panelSize = panel.frame.size
+        let x = screenFrame.midX - panelSize.width / 2
+        let y = screenFrame.midY - panelSize.height / 2
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     func close() {
@@ -126,15 +119,7 @@ final class CapturePopupController {
         panel.hasShadow = true
         panel.contentView = hostingView
 
-        let mouseLocation = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
-        if let screen {
-            let screenFrame = screen.visibleFrame
-            let panelSize = panel.frame.size
-            let x = screenFrame.midX - panelSize.width / 2
-            let y = screenFrame.midY - panelSize.height / 2
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
+        centerOnActiveScreen(panel)
 
         panel.orderFrontRegardless()
         self.toastPanel = panel

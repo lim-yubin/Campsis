@@ -28,17 +28,19 @@ struct CapturePopupView: View {
                 .textFieldStyle(.roundedBorder)
 
             HStack {
+                Text("⌘↩ 저장 · esc 취소")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 Spacer()
                 Button("취소") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("기억하기") { save() }
-                    .keyboardShortcut(.defaultAction)
+                    .keyboardShortcut(.return, modifiers: .command)
                     .buttonStyle(.borderedProminent)
             }
         }
         .padding(20)
-        .frame(width: 420)
-        .frame(minHeight: 200)
+        .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { noteFieldFocused = true }
     }
 
@@ -46,19 +48,22 @@ struct CapturePopupView: View {
     private var previewSection: some View {
         switch payload {
         case .text(let captured):
-            Text(captured.content)
-                .lineLimit(6)
-                .font(.body)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            ScrollView {
+                Text(captured.content)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(8)
+            .background(.quaternary)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
 
         case .screenshot(let captured):
             Image(nsImage: captured.image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 160)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }

@@ -63,7 +63,7 @@ struct CapturePopupView: View {
             Image(nsImage: captured.image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 220, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }

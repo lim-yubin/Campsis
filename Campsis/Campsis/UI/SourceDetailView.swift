@@ -517,8 +517,11 @@ struct SourceDetailView: View {
                     GroupBox("스크린샷") {
                         Image(nsImage: nsImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 300)
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)          // 가용 폭을 채움 → 크게 표시
+                            .contentShape(Rectangle())
+                            .onTapGesture { NSWorkspace.shared.open(url) }  // 클릭 시 원본 크기로 열기
+                            .help("클릭하면 원본 크기로 열려요")
                     }
                 }
             }

@@ -131,9 +131,8 @@ struct SourcePreviewView: View {
                 if let image = previewImage {
                     Image(nsImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .frame(maxHeight: 260)
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)   // 인스펙터 폭에 맞춰 온전히 표시
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 

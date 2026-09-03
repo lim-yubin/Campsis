@@ -129,11 +129,14 @@ struct SourcePreviewView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // A1: 이미지/스크린샷 소스는 캡처본을 상단에 노출
                 if let image = previewImage {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)   // 인스펙터 폭에 맞춰 온전히 표시
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if let fileURL = previewImageURL {
+                        FittedScreenshot(image: image) {
+                            openOriginalFile(fileURL, watcher: appState.editWatcher, sourceId: source.id)
+                        }   // 인스펙터 폭을 항상 채움
+                        .help("클릭하면 원본이 편집 가능한 상태로 열려요. 수정 후 저장하면 정리본을 다시 만들지 물어봐요.")
+                    } else {
+                        FittedScreenshot(image: image)   // 인스펙터 폭을 항상 채움
+                    }
                 }
 
                 header
@@ -155,6 +158,12 @@ struct SourcePreviewView: View {
         }
         .copyToast($toastMessage)
         .task(id: source.id) { load() }
+        .onReceive(NotificationCenter.default.publisher(for: .sourceReprocessed)) { note in
+            // 원본 외부 편집 → 정리본 재생성 완료 시 이 소스면 미리보기를 갱신.
+            if (note.userInfo?["id"] as? String) == source.id {
+                load()
+            }
+        }
     }
 
     private var header: some View {
@@ -196,7 +205,7 @@ struct SourcePreviewView: View {
 
             if let url = openableURL {
                 Button {
-                    NSWorkspace.shared.open(url)
+                    openOriginalFile(url, watcher: appState.editWatcher, sourceId: source.id)
                 } label: {
                     Label("원문 열기", systemImage: "arrow.up.right.square")
                 }
@@ -247,13 +256,19 @@ struct SourcePreviewView: View {
 
     /// 스크린샷 또는 이미지 파일이면 상단 미리보기용 이미지를 로드한다.
     private var previewImage: NSImage? {
+        guard let url = previewImageURL else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    /// 미리보기 이미지의 원본 파일 URL(클릭 시 원본 열기용).
+    private var previewImageURL: URL? {
         if source.type == .screenshot, let path = source.screenshotPath {
-            return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+            return AppPaths.absoluteURL(from: path)
         }
         if source.type == .file, let path = source.filePath {
             let ext = (path as NSString).pathExtension.lowercased()
             if ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains(ext) {
-                return NSImage(contentsOf: AppPaths.absoluteURL(from: path))
+                return AppPaths.absoluteURL(from: path)
             }
         }
         return nil

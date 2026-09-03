@@ -18,6 +18,8 @@ extension Notification.Name {
     static let wikiUpdated = Notification.Name("wikiUpdated")
     /// 채팅 출처(위키 배지) 클릭 등으로 특정 위키를 열어야 할 때(Phase 8.8). `AppState.pendingWikiId` 사용.
     static let openWiki = Notification.Name("openWiki")
+    /// 원본 외부 편집 후 정리본이 재생성되어 상세/인스펙터를 새로고침해야 할 때. userInfo["id"] = sourceId.
+    static let sourceReprocessed = Notification.Name("sourceReprocessed")
 }
 
 /// AI 생성 제공자 (D36, D38, D48). AppStorage 키 "aiProvider"에 rawValue 저장.

@@ -147,6 +147,24 @@ actor ProcessingQueue {
         await processSource(&source)
     }
 
+    /// 외부 앱(미리보기 등)에서 원본 파일이 수정된 뒤 정리본을 재생성한다.
+    /// - 스크린샷/이미지: 디스크 파일을 다시 읽어 Luna 비전 재호출(imageDataURL이 최신 파일 사용).
+    /// - 문서형(PDF/txt/md): 디스크에서 content를 재추출한 뒤 재호출.
+    func regenerateFromDisk(id: String) async {
+        guard var source = try? repository.fetch(id: id) else { return }
+
+        if source.type == .file, let rel = source.filePath {
+            let url = AppPaths.absoluteURL(from: rel)
+            if let refreshed = FileTextExtractor.extractText(fileURL: url) {
+                source.content = refreshed
+            }
+        }
+
+        source.markdownStatus = .pending
+        try? repository.update(&source)
+        await processSource(&source)
+    }
+
     func embedAllMissing() async {
         do {
             try await embeddingService.loadIfNeeded()

@@ -4,8 +4,9 @@ import GRDB
 @testable import Campsis
 
 struct AppPathsTests {
-    @Test func applicationSupportPathContainsCampsis() {
-        let path = AppPaths.applicationSupport.path(percentEncoded: false)
+    @Test func dataRootPathIsInDocumentsCampsis() {
+        let path = AppPaths.dataRoot.path(percentEncoded: false)
+        #expect(path.contains("Documents"))
         #expect(path.contains("Campsis"))
     }
 

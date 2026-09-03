@@ -129,6 +129,7 @@ struct MainContentView: View {
         }
         .task {
             loadConversations()
+            appState.editWatcher.startObserving()
             if !hasCompletedOnboarding { showOnboarding = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: .chatResponseCompleted)) { _ in
@@ -143,6 +144,40 @@ struct MainContentView: View {
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView(isPresented: $showOnboarding)
+        }
+        .alert("원본이 수정되었어요",
+               isPresented: reprocessAlertBinding,
+               presenting: appState.editWatcher.changedSourceIds.first) { id in
+            Button("나중에", role: .cancel) { appState.editWatcher.resolve(id) }
+            Button("정리본 재생성") { regenerateFromDisk(id) }
+        } message: { id in
+            Text("‘\(reprocessTitle(for: id))’의 원본 파일이 바뀌었습니다. 수정본으로 정리본을 다시 만들까요?")
+        }
+    }
+
+    /// 외부 편집 감지 확인 다이얼로그 표시 여부 바인딩.
+    private var reprocessAlertBinding: Binding<Bool> {
+        Binding(
+            get: { !appState.editWatcher.changedSourceIds.isEmpty },
+            set: { newValue in
+                if !newValue, let id = appState.editWatcher.changedSourceIds.first {
+                    appState.editWatcher.resolve(id)
+                }
+            }
+        )
+    }
+
+    private func reprocessTitle(for id: String) -> String {
+        (try? appState.sourceRepository.fetch(id: id))?.displayTitle ?? "이 기억"
+    }
+
+    /// 수정된 원본으로 정리본을 재생성하고, 상세/인스펙터에 새로고침 알림을 보낸다.
+    private func regenerateFromDisk(_ id: String) {
+        appState.editWatcher.resolve(id)
+        guard let queue = appState.processingQueueRef as? ProcessingQueue else { return }
+        Task {
+            await queue.regenerateFromDisk(id: id)
+            NotificationCenter.default.post(name: .sourceReprocessed, object: nil, userInfo: ["id": id])
         }
     }
 

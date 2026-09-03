@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct CapturePopupView: View {
     let payload: CapturePayload
@@ -8,6 +9,8 @@ struct CapturePopupView: View {
 
     @State private var userNote: String = ""
     @FocusState private var noteFieldFocused: Bool
+    /// 미리보기에서 원본을 수정하고 돌아왔을 때 디스크에서 다시 읽은 이미지.
+    @State private var editedScreenshot: NSImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -42,6 +45,16 @@ struct CapturePopupView: View {
         .padding(20)
         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { noteFieldFocused = true }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // 미리보기에서 원본을 수정하고 돌아오면 최신 이미지를 다시 읽어 미리보기에 반영.
+            // (저장 시에는 processSource가 디스크의 수정본을 읽으므로 정리본도 수정본 기준으로 생성됨)
+            if case .screenshot(let captured) = payload {
+                let url = AppPaths.absoluteURL(from: captured.savedPath)
+                if let refreshed = NSImage(contentsOf: url) {
+                    editedScreenshot = refreshed
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -60,11 +73,11 @@ struct CapturePopupView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
         case .screenshot(let captured):
-            Image(nsImage: captured.image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, minHeight: 220, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            FittedScreenshot(image: editedScreenshot ?? captured.image, cornerRadius: 6) {
+                openOriginalFile(AppPaths.absoluteURL(from: captured.savedPath))
+            }
+            .help("클릭하면 원본 파일이 편집 가능한 상태로 열려요. 수정 후 저장하면 그대로 기억됩니다.")
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 

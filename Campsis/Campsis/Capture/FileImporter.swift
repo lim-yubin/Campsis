@@ -41,17 +41,12 @@ nonisolated struct FileImporter: Sendable {
             throw FileImportError.readFailed("Cannot open PDF: \(url.lastPathComponent)")
         }
 
-        var fullText = ""
-        for i in 0..<document.pageCount {
-            if let page = document.page(at: i), let text = page.string {
-                if !fullText.isEmpty { fullText += "\n\n" }
-                fullText += text
-            }
-        }
+        // 텍스트 추출은 공용 추출기 사용(외부 편집 후 재처리와 동일 로직).
+        let fullText = FileTextExtractor.extractText(fileURL: url)
 
         var source = Source(
             type: .file,
-            content: fullText.isEmpty ? nil : fullText,
+            content: fullText,
             filePath: destPath,
             application: "PDF",
             windowTitle: url.lastPathComponent

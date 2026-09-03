@@ -121,6 +121,9 @@ final class AppState {
     var inspectorWiki: Wiki?
     var inspectorMode: InspectorMode = .source
 
+    /// 외부 앱에서 원본 파일 편집을 감지해 정리본 재생성을 유도한다.
+    let editWatcher = EditWatcher()
+
     var chatEngine: (any ChatEngineProtocol)? { chatEngineRef as? (any ChatEngineProtocol) }
     var searchEngine: VectorSearchEngine? { searchEngineRef as? VectorSearchEngine }
     var wikiResynthesizer: WikiResynthesizer? { wikiResynthesizerRef as? WikiResynthesizer }

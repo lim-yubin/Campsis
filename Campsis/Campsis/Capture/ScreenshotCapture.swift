@@ -21,8 +21,14 @@ enum ScreenshotCapture {
 
         let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
         let config = SCStreamConfiguration()
-        config.width = Int(display.width) * 2
-        config.height = Int(display.height) * 2
+        // SCDisplay.width/height는 포인트 단위이고 스케일이 디스플레이마다 다르므로
+        // 하드코딩 *2는 스케일 1 디스플레이(외장 모니터 등)에서 캔버스를 2배로 부풀려
+        // 우측·하단에 검은 여백을 만든다. 실제 네이티브 픽셀 해상도를 사용한다.
+        let mode = CGDisplayCopyDisplayMode(display.displayID)
+        let pixelWidth = mode?.pixelWidth ?? Int(display.width)
+        let pixelHeight = mode?.pixelHeight ?? Int(display.height)
+        config.width = pixelWidth
+        config.height = pixelHeight
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = false
 
@@ -31,6 +37,7 @@ enum ScreenshotCapture {
             configuration: config
         ) else { return nil }
 
+        // 논리 크기는 포인트 단위로 둬 화면 표시 시 올바른 크기를 갖게 한다.
         let nsImage = NSImage(cgImage: image, size: NSSize(width: display.width, height: display.height))
 
         guard let savedPath = saveScreenshot(nsImage) else { return nil }
@@ -84,6 +91,8 @@ enum ScreenshotCapture {
         do {
             try AppPaths.ensureDirectories()
             try pngData.write(to: url)
+            // 저장 직후 격리 속성 제거 + 쓰기 권한 보장 → 미리보기에서 원본 제자리 편집 가능
+            AppPaths.prepareForInPlaceEditing(url)
             return AppPaths.relativePath(from: url)
         } catch {
             return nil

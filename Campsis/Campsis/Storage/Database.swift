@@ -26,6 +26,8 @@ nonisolated final class AppDatabase: Sendable {
     }
 
     static func makeDefault() throws -> AppDatabase {
+        // DB를 새 위치에서 열기 전에, 구 데이터 루트에서 일회성 이전을 수행한다.
+        AppPaths.migrateToDocumentsIfNeeded()
         try AppPaths.ensureDirectories()
         return try AppDatabase(path: AppPaths.database.path(percentEncoded: false))
     }

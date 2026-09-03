@@ -5,6 +5,43 @@ enum SourceDetailTab: Hashable {
     case original
 }
 
+/// 저장된 원본 파일을 편집 가능한 상태로 연다.
+/// 격리 속성 제거 + 쓰기 권한 보장 후 기본 앱으로 열어, 미리보기에서
+/// 복제본이 아닌 원본을 제자리 편집할 수 있게 한다.
+/// watcher/sourceId를 주면 외부 편집을 추적해, 앱 복귀 시 정리본 재생성을 유도한다.
+@MainActor
+func openOriginalFile(_ url: URL, watcher: EditWatcher? = nil, sourceId: String? = nil) {
+    AppPaths.prepareForInPlaceEditing(url)
+    if let watcher, let sourceId {
+        watcher.track(sourceId: sourceId, url: url)
+    }
+    NSWorkspace.shared.open(url)
+}
+
+/// 부모 폭을 항상 채우고 원본 비율로 높이를 잡는 스크린샷 뷰.
+/// Color.clear가 제안된 폭을 100% 채우므로, 세로 ScrollView의 무한 높이 제안에도
+/// 안전하게 폭을 따라간다(scaledToFit + maxWidth 조합이 고유 크기로 축소되는 문제 회피).
+struct FittedScreenshot: View {
+    let image: NSImage
+    var cornerRadius: CGFloat = 8
+    var onOpen: (() -> Void)? = nil
+
+    var body: some View {
+        let ratio = image.size.height > 0 ? image.size.width / image.size.height : 1.6
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .aspectRatio(ratio, contentMode: .fit)   // 폭에서 높이 확정
+            .overlay {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .contentShape(Rectangle())
+            .onTapGesture { onOpen?() }
+    }
+}
+
 struct SourceDetailView: View {
     let source: Source
     @Environment(AppState.self) private var appState
@@ -81,6 +118,12 @@ struct SourceDetailView: View {
         .copyToast($toastMessage)
         .navigationTitle(source.displayTitle)
         .task { loadMarkdown() }
+        .onReceive(NotificationCenter.default.publisher(for: .sourceReprocessed)) { note in
+            // 원본 외부 편집 → 정리본 재생성 완료 시 이 소스면 최신 내용으로 갱신.
+            if (note.userInfo?["id"] as? String) == source.id {
+                reloadAfterRegenerate(id: source.id)
+            }
+        }
         .toolbar { toolbarContent }
         .alert("정리본을 다시 만들까요?", isPresented: $showOverwriteConfirm) {
             Button("취소", role: .cancel) { pendingOriginal = nil }
@@ -136,7 +179,7 @@ struct SourceDetailView: View {
         if !isEditing, let url = openableURL {
             ToolbarItem(placement: .secondaryAction) {
                 Button {
-                    NSWorkspace.shared.open(url)
+                    openOriginalFile(url, watcher: appState.editWatcher, sourceId: source.id)
                 } label: {
                     Label("원문 열기", systemImage: "arrow.up.right.square")
                 }
@@ -494,8 +537,7 @@ struct SourceDetailView: View {
 
                             if source.type == .file, let path = source.filePath {
                                 Button("원본 열기") {
-                                    let url = AppPaths.absoluteURL(from: path)
-                                    NSWorkspace.shared.open(url)
+                                    openOriginalFile(AppPaths.absoluteURL(from: path), watcher: appState.editWatcher, sourceId: source.id)
                                 }
                                 .font(.caption)
                                 .buttonStyle(.borderless)
@@ -514,18 +556,16 @@ struct SourceDetailView: View {
             if let path = source.screenshotPath {
                 let url = AppPaths.absoluteURL(from: path)
                 if let nsImage = NSImage(contentsOf: url) {
-                    GroupBox("스크린샷") {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity)          // 가용 폭을 채움 → 크게 표시
-                            .contentShape(Rectangle())
-                            .onTapGesture { NSWorkspace.shared.open(url) }  // 클릭 시 원본 크기로 열기
-                            .help("클릭하면 원본 크기로 열려요")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("스크린샷")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        FittedScreenshot(image: nsImage) {
+                            openOriginalFile(url, watcher: appState.editWatcher, sourceId: source.id)
+                        }
+                        .help("클릭하면 원본이 편집 가능한 상태로 열려요. 수정 후 저장하면 정리본을 다시 만들지 물어봐요.")
                     }
-                    // GroupBox는 macOS에서 내용 크기에 맞춰 수축하므로, 박스 자체에
-                    // 폭을 강제해야 안의 이미지가 가용 폭을 채운다.
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             if let ocrText = source.ocrText, !ocrText.isEmpty {
